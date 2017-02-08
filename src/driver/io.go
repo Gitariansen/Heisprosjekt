@@ -4,8 +4,8 @@ package driver/* need io.go, io.c, io,h, channels.go, channels.h and driver.go*/
 //#include "io.h"
 import "C"
 
-func Io_init(){
-  C.io_init()
+func Io_init() int{
+    return int(C.io_init())
 }
 
 func Io_set_bit(channel int){

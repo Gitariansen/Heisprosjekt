@@ -1,5 +1,7 @@
 package driver
 
+
+import "fmt"
 const(
 N_FLOORS = 4
 N_BUTTONS = 3
@@ -33,10 +35,10 @@ var button_channel_matrix = [N_FLOORS][N_BUTTONS]int{
 }
 
 func Elev_init(){
-  Io_init() //CHECK THIS
+  fmt.Println("INIT: %d", Io_init()) //CHECK THIS
   for f := 0; f < N_FLOORS; f++ {
     for b := 0; b < N_BUTTONS; b++{
-      //Elev_set_button_lamp(config.ButtonPress{Floor: f, Button: b, Value: false})
+      Elev_set_button_lamp(b, f, false)
     }
   }
 }
@@ -53,7 +55,7 @@ func Elev_set_motor_direction(direction int){
   }
 }
 
-func Elev_set_button_lamp(button elev_button_type_t, floor int, value bool){
+func Elev_set_button_lamp(button int, floor int, value bool){
   if value{
     Io_set_bit(lamp_channel_matrix[floor][button])
   } else {
@@ -79,7 +81,7 @@ func Elev_set_door_open_lamp(value bool){
 }
 
 func Elev_get_button_signal(button int, floor int) int{
-  return Io_read_bit(button_channel_matrix[floor][button])
+  return int(Io_read_bit(button_channel_matrix[floor][button]))
 }
 
 func Elev_get_floor_sensor_signal() int{
