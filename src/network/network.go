@@ -1,77 +1,81 @@
 package network
 
-
 import (
 	"fmt"
 	"net"
-  "os"
-	"time"
+	"os"
 	"strings"
+	"time"
 )
 
-var serverAddr *net.UDPAddr
-var localIP string
-var port = "30042"
-
-
+//var serverAddr *net.UDPAddr
+//var localIP string
+var port = ":30042"
+var msg = "Hello from the other side"
+var conn *net.UDPConn
 
 func check_error(err error) {
-    if err != nil {
-        fmt.Println("Error: ", err)
-        os.Exit(0)
-    }
+	if err != nil {
+		fmt.Println("Error: ", err)
+		os.Exit(0)
+	}
 }
 
-
-// All credz Anders
-func get_local_IP() (string) {
+// All credz Anders.
+// Brukes til å sammenligne om det er en meling fra deg selv.
+// I såfall ignorer denne.
+func get_local_IP() string {
 	conn, err := net.DialTCP("tcp4", nil, &net.TCPAddr{IP: []byte{8, 8, 8, 8}, Port: 53})
-	go check_error(err)
+	check_error(err)
 	defer conn.Close()
 
-	localIP = strings.Split(conn.LocalAddr().String(), ":")[0]
+	localIP := strings.Split(conn.LocalAddr().String(), ":")[0]
 	return localIP
 }
 
+func Init() (*net.UDPAddr, string) {
+	localIP := get_local_IP()
 
+	// setting up UDP server for broadcasting
+	serverAddr, err := net.ResolveUDPAddr("udp", "255.255.255.255"+port)
+	check_error(err)
+	fmt.Println("Server adress: ", serverAddr)
+	fmt.Println("Local adress: ", localIP)
 
-func init() {
-    // setting up UDP server for broadcasting
-    serverAddr, err := net.ResolveUDPAddr("udp4", net.JoinHostPort("255.255.255.255", port))
-		localIP = get_local_IP()
-    check_error(err)
-		fmt.Println("Server adress: ", serverAddr)
-		fmt.Println("Local adress: ", localIP)
+	return serverAddr, localIP
 }
 
+func Recive_msg_UDP() {
+	serverAddr, err := net.ResolveUDPAddr("udp", port)
+	check_error(err)
 
-func recive_msg_UDP(port string) string {
 	conn, err := net.ListenUDP("udp", serverAddr)
 	check_error(err)
 	defer conn.Close()
 
-	var buffer []byte
-	for {
-		time.Sleep(100*time.Millisecond)
-		n, address, err := conn.ReadFromUDP(buffer)
-		check_error(err)
-		fmt.Println("Got message from ", address, " with n = ", address, n)
-		if n > 0 {
-			fmt.Println("From address: ", address, " got message: ", string(buffer[0:n]), n)
-		}
+	buffer := make([]byte, 1024)
+
+	n, address, err := conn.ReadFromUDP(buffer)
+	check_error(err)
+	fmt.Println("Got message from ", address, " with n = ", n)
+	if n > 0 {
+		fmt.Println("From address: ", address, " got message: ", string(buffer[0:n]))
 	}
+	fmt.Println("Listening...")
+	time.Sleep(100 * time.Millisecond)
 }
 
+func Broadcast_UDP(serverAddr *net.UDPAddr) {
+	localAddr, err := net.ResolveUDPAddr("udp", ":0")
+	check_error(err)
 
-func broadcast_UDP(port, msg string, length int) {
-	IP, err := net.ResolveUDPAddr("udp", localIP)
-	conn, err := net.DialUDP("udp", IP, serverAddr)
+	conn, err := net.DialUDP("udp", localAddr, serverAddr)
 	check_error(err)
 	defer conn.Close()
 
-	for {
-		time.Sleep(1000*time.Microsecond)
-		_, err := conn.WriteToUDP([]byte("Hello from the other siiiiiideeee \n"), serverAddr)
-		check_error(err)
-	}
+	fmt.Println("Sending message...")
+	_, err = conn.Write([]byte(msg))
+	check_error(err)
+	msg = msg + "e"
+	time.Sleep(1000 * time.Millisecond)
 }
