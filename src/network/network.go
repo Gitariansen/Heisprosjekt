@@ -1,12 +1,25 @@
 package network
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"strings"
 	"time"
 )
+
+/*
+
+ANDERS SE HER!!!
+https://github.com/danielbmx/heisprosjekt/tree/master/src/networkmodule
+
+*/
+
+type UDPMessage struct {
+	msg   string
+	queue []bool
+}
 
 //var serverAddr *net.UDPAddr
 //var localIP string
@@ -22,7 +35,7 @@ func check_error(err error) {
 }
 
 // All credz Anders.
-// Brukes til å sammenligne om det er en meling fra deg selv.
+// Brukes til å sammenligne om det er en melingbuffer[0:n],&save fra deg selv.
 // I såfall ignorer denne.
 func get_local_IP() string {
 	conn, err := net.DialTCP("tcp4", nil, &net.TCPAddr{IP: []byte{8, 8, 8, 8}, Port: 53})
@@ -45,7 +58,9 @@ func Init() (*net.UDPAddr, string) {
 	return serverAddr, localIP
 }
 
-func Recive_msg_UDP() {
+func Recive_msg_UDP(msg_chan chan UDPMessage) {
+	var msg UDPMessage
+
 	serverAddr, err := net.ResolveUDPAddr("udp", port)
 	check_error(err)
 
@@ -55,14 +70,14 @@ func Recive_msg_UDP() {
 
 	buffer := make([]byte, 1024)
 
-	n, address, err := conn.ReadFromUDP(buffer)
-	check_error(err)
-	fmt.Println("Got message from ", address, " with n = ", n)
-	if n > 0 {
-		fmt.Println("From address: ", address, " got message: ", string(buffer[0:n]))
+	for {
+		n, address, err := conn.ReadFromUDP(buffer)
+		check_error(err)
+		fmt.Println("Got message from ", address, " with n = ", n)
+		json.Unmarshal(buffer[0:n], &msg)
+		check_error(err)
+		msg_chan <- msg
 	}
-	fmt.Println("Listening...")
-	time.Sleep(100 * time.Millisecond)
 }
 
 func Broadcast_UDP(serverAddr *net.UDPAddr) {
