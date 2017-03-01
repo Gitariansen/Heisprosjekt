@@ -2,35 +2,30 @@ package main
 
 import (
 	"fmt"
+	"time"
 	//"time"
-	"test"
 	"driver"
 	"order_manager"
+	"test"
 )
 
 func main() {
 	//network.init()
 	fmt.Println("You are in main")
-	go test.Get_Button_Press()
+	newButtonchan := make(chan driver.Button)
+
 	driver.Elev_init()
 	order_manager.Queue_init()
-	//driver.Elev_set_motor_direction(1)
-  //driver.Elev_set_button_lamp(1, 1, true)
+	driver.Elev_set_motor_direction(0)
 
-	/*  for {
-	    for floor := 0; floor < driver.N_FLOORS; floor++{
-	      for button := 0; button < driver.N_BUTTONS; button ++{
-	        fmt.Println("New iteration", floor, button)
-	        fmt.Println(driver.Elev_get_button_signal(button, floor))
-	            time.Sleep(100*time.Millisecond)
-	      }
-	    }
+	go test.Get_Button_Press(newButtonchan)
+	go order_manager.Add_order_to_queue(newButtonchan)
 
-	  }*/
-
-		for {
-			if driver.Elev_get_stop_signal() == 1 {
-				driver.Elev_set_motor_direction(0)
-			}
+	for {
+		if driver.Elev_get_stop_signal() == 1 {
+			driver.Elev_set_motor_direction(0)
+			fmt.Println(order_manager.Queue_matrix)
+			time.Sleep(1000 * time.Millisecond)
 		}
+	}
 }

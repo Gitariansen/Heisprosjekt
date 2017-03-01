@@ -1,5 +1,10 @@
 package driver
 
+type Button struct {
+	Floor  int
+	B_type int
+}
+
 const (
 	N_FLOORS  = 4
 	N_BUTTONS = 3
@@ -9,10 +14,10 @@ const (
 	MOTOR_SPEED = 2800
 )
 
-type elev_button_type_t int
+type button_type int
 
 const (
-	BUTTON_CALL_UP elev_button_type_t = iota
+	BUTTON_CALL_UP button_type = iota
 	BUTTON_CALL_DOWN
 	BUTTON_COMMAND
 )
