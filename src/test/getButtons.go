@@ -20,15 +20,27 @@ func Get_Button_Press(c chan driver.Button) /*<-chan bool*/ {
 					button_pressed.B_type = button
 					c <- button_pressed
 					for driver.Elev_get_button_signal(button, floor) == 1 {
-
+							//TODO Don't do this
 					}
-					//order_manager.Queue_matrix[floor][button] = true
-					//
-
 				}
 			}
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	//return ret
+}
+
+func Get_new_floor(ch chan int){
+	prev_floor := driver.Elev_get_floor_sensor_signal()
+	for {
+		curr_floor := driver.Elev_get_floor_sensor_signal()
+		if(curr_floor != -1 && curr_floor != prev_floor){
+			ch <- curr_floor
+		}
+		prev_floor = curr_floor
+	}
+}
+
+func Sync_lights(){
+
 }

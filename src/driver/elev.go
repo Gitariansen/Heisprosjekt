@@ -1,5 +1,10 @@
 package driver
 
+import(
+	"conf"
+)
+
+
 type Button struct {
 	Floor  int
 	B_type int
@@ -36,6 +41,8 @@ var button_channel_matrix = [N_FLOORS][N_BUTTONS]int{
 	{BUTTON_UP4, BUTTON_DOWN4, BUTTON_COMMAND4},
 }
 
+
+
 func Elev_init() {
 	Io_init() //CHECK THIS
 	for f := 0; f < N_FLOORS; f++ {
@@ -43,6 +50,13 @@ func Elev_init() {
 			Elev_set_button_lamp(b, f, false)
 		}
 	}
+	if Elev_get_floor_sensor_signal() == -1{
+		Elev_set_motor_direction(conf.DOWN)
+	}
+	for Elev_get_floor_sensor_signal() == -1{
+
+	}
+	Elev_set_motor_direction(conf.STOP)
 }
 
 func Elev_set_motor_direction(direction int) {
@@ -68,6 +82,11 @@ func Elev_set_button_lamp(button int, floor int, value bool) {
 func Elev_set_floor_indicator(floor int) {
 	//binary encoding. One light must always be on.
 	if floor&0x02 > 0 {
+		Io_set_bit(LIGHT_FLOOR_IND1)
+	} else {
+		Io_clear_bit(LIGHT_FLOOR_IND1)
+	}
+	if floor&0x01 > 0 {
 		Io_set_bit(LIGHT_FLOOR_IND2)
 	} else {
 		Io_clear_bit(LIGHT_FLOOR_IND2)
