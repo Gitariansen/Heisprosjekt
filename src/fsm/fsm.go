@@ -24,6 +24,7 @@ type Fsm_channels struct{ //TODO implement this
     Door_reset    chan bool
     New_order     chan bool
     New_floor     chan int
+    Sync_lights   chan bool
 
 }
 
@@ -45,23 +46,24 @@ func open_door(Door_timeout, Door_reset chan bool){
 
 
 
-func Run(newOrder chan bool, newFloor chan int, Door_timeout chan bool, Door_reset chan bool, sync_lights chan bool){
+func Run(newOrder chan bool, newFloor chan int, Door_timeout chan bool, Door_reset chan bool){
   go open_door(Door_timeout, Door_reset)
+  fmt.Println("in run")
   for {
     select{
     case <-newOrder:
-      new_order_in_queue(Door_reset, sync_lights)
+      fmt.Println("Received new order")
+      new_order_in_queue(Door_reset)
     case floor := <-newFloor:
-      arriving_at_floor(floor, Door_reset, sync_lights)
+      arriving_at_floor(floor, Door_reset)
     case <- Door_timeout:
       door_timeout()
     }
   }
 }
 
-func new_order_in_queue(Door_reset chan bool, sync_lights chan bool){
-  sync_lights <- true
-  fmt.Println("New order in queue")
+func new_order_in_queue(Door_reset chan bool){
+  //sync_lights <- true
   switch states_test {
   case IDLE:
     structs.TheElev.Dir = structs.TheElev.Queue.Choose_dir(structs.TheElev.Floor, structs.TheElev.Dir)
@@ -69,34 +71,38 @@ func new_order_in_queue(Door_reset chan bool, sync_lights chan bool){
       states_test = DOOR_OPEN
       Door_reset <- true
       driver.Elev_set_door_open_lamp(true)
+      structs.TheElev.Queue.Clear_orders_at_floor(structs.TheElev.Floor, structs.TheElev.Dir)
+      //sync_lights<-true
     } else{
+      //sync_lights <- true
       driver.Elev_set_motor_direction(structs.TheElev.Dir)
       states_test = MOVING
     }
   case MOVING:
-    fmt.Println("Was MOVING - did nothing")
+    //sync_lights <- true
     //do nothing
   case DOOR_OPEN:
+  structs.TheElev.Dir = structs.TheElev.Queue.Choose_dir(structs.TheElev.Floor, structs.TheElev.Dir)
     if(structs.TheElev.Dir == conf.STOP){
+      fmt.Println("Got new order while in DOOR_OPEN")
       Door_reset <- true
-      driver.Elev_set_door_open_lamp(true) //don't need this
+      structs.TheElev.Queue.Clear_orders_at_floor(structs.TheElev.Floor, structs.TheElev.Dir)
+      //driver.Elev_set_door_open_lamp(true) //don't need this
     }
   }
 }
 
-func arriving_at_floor(f int, Door_reset chan bool, sync_lights chan bool){
+func arriving_at_floor(f int, Door_reset chan bool){
   structs.TheElev.Floor = f
   driver.Elev_set_floor_indicator(f)
-  fmt.Println("Arriving at floor: ", f)
+  fmt.Println("Arriving at floor: ", f+1)
   switch states_test {
   case IDLE:
     //Do nothing
   case MOVING:
     if(structs.TheElev.Queue.Should_stop(f, structs.TheElev.Dir)){
       driver.Elev_set_motor_direction(conf.STOP)
-      fmt.Println("Clearing orders for direction: ", structs.TheElev.Dir)
       structs.TheElev.Queue.Clear_orders_at_floor(f, structs.TheElev.Dir)
-      sync_lights <- true
       states_test = DOOR_OPEN
       Door_reset<- true
       driver.Elev_set_door_open_lamp(true)
@@ -114,9 +120,7 @@ func door_timeout(){
     //Do nothing
   case DOOR_OPEN:
     driver.Elev_set_door_open_lamp(false)
-    fmt.Println("THIS")
     structs.TheElev.Dir = structs.TheElev.Queue.Choose_dir(structs.TheElev.Floor, structs.TheElev.Dir)
-
     if(structs.TheElev.Dir == conf.STOP){
       states_test = IDLE
     } else {

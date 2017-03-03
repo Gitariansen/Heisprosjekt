@@ -3,7 +3,7 @@ package test
 
 import (
 	"driver"
-	"fmt"
+	_ "fmt"
 	"time"
 )
 
@@ -15,19 +15,17 @@ func Get_Button_Press(c chan driver.Button) /*<-chan bool*/ {
 		for floor := 0; floor < driver.N_FLOORS; floor++ {
 			for button := 0; button < driver.N_BUTTONS; button++ {
 				if driver.Elev_get_button_signal(button, floor) == 1 {
-					fmt.Println("Button Pressed in floor: ", floor+1)
 					button_pressed.Floor = floor
 					button_pressed.B_type = button
 					c <- button_pressed
-					for driver.Elev_get_button_signal(button, floor) == 1 {
+					/*for driver.Elev_get_button_signal(button, floor) == 1 {
 							//TODO Don't do this
-					}
+					}*/
 				}
 			}
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	//return ret
 }
 
 func Get_new_floor(ch chan int){
