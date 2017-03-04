@@ -1,6 +1,6 @@
-package main
 
-func main() {
+
+/*func main() {
 	/* // Test connection functions
 	conn := make(chan network.Connection)
 	msg_chan := make(chan network.UDPMessage)
@@ -15,7 +15,7 @@ func main() {
 	fmt.Println("stuck test 1")
 
 	network.Broadcast_UDP(conn, test_msg, msg_chan)
-	*/
+	
 
 	// Test Peers
 	var testPeers []Peer
@@ -27,4 +27,4 @@ func main() {
 	testPeers := append(testPeers, peer2)
 	testPeers := append(testPeers, peer3)
 
-}
+}*/

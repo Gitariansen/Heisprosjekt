@@ -26,7 +26,7 @@ func (q *Queue)Add_order_to_queue(c chan driver.Button, o chan bool) {
 		select {
 		case button_pressed := <-c:
 			q.queue_matrix[button_pressed.Floor][button_pressed.B_type] = true
-			q.Set_lights()
+			q.set_lights()
 			o <- true
 		}
 	}
@@ -49,10 +49,10 @@ func (q *Queue)Clear_orders_at_floor(floor, dir int) {
 		q.queue_matrix[floor][conf.B_UP] = false
 		q.queue_matrix[floor][conf.B_DOWN] = false
 	}
-	q.Set_lights()
+	q.set_lights()
 }
 
-func (q *Queue)Set_lights(){
+func (q *Queue)set_lights(){
 	  for f:=0;f<driver.N_FLOORS;f++{
 	    for b:= 0; b<driver.N_BUTTONS;b++{
 	      if q.queue_matrix[f][b]{

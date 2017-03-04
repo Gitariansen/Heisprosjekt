@@ -38,7 +38,3 @@ func Get_new_floor(ch chan int){
 		prev_floor = curr_floor
 	}
 }
-
-func Sync_lights(){
-
-}

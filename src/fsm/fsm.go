@@ -28,6 +28,7 @@ type Fsm_channels struct{ //TODO implement this
 
 }
 
+//hardkokt
 func open_door(Door_timeout, Door_reset chan bool){
   const length = 3 * time.Second
   timer := time.NewTimer(0)
@@ -79,7 +80,6 @@ func new_order_in_queue(Door_reset chan bool){
       states_test = MOVING
     }
   case MOVING:
-    //sync_lights <- true
     //do nothing
   case DOOR_OPEN:
   structs.TheElev.Dir = structs.TheElev.Queue.Choose_dir(structs.TheElev.Floor, structs.TheElev.Dir)
