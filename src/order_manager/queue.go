@@ -20,7 +20,6 @@ func Make_empty_queue() Queue{
 	return ret
 }
 
-
 func (q *Queue)Add_order_to_queue(c chan driver.Button, o chan bool) {
 
 	for {
@@ -33,9 +32,7 @@ func (q *Queue)Add_order_to_queue(c chan driver.Button, o chan bool) {
 	}
 }
 
-
 func (q *Queue)Clear_orders_at_floor(floor, dir int) {
-	fmt.Println("HERE")
 	q.queue_matrix[floor][conf.B_CMD] = false
 	switch dir{
 	case conf.UP:
@@ -52,10 +49,8 @@ func (q *Queue)Clear_orders_at_floor(floor, dir int) {
 		q.queue_matrix[floor][conf.B_UP] = false
 		q.queue_matrix[floor][conf.B_DOWN] = false
 	}
-	fmt.Println("Going to clear lights")
 	q.Set_lights()
 }
-
 
 func (q *Queue)Set_lights(){
 	  for f:=0;f<driver.N_FLOORS;f++{
@@ -112,7 +107,6 @@ func (q *Queue)order_below(floor int)bool{
 	}
 	return false
 }
-
 
  func (q *Queue)is_empty()bool{
 	 for f:= 0; f<driver.N_FLOORS; f++{
