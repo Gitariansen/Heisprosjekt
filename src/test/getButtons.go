@@ -28,11 +28,11 @@ func Get_Button_Press(c chan driver.Button) /*<-chan bool*/ {
 	}
 }
 
-func Get_new_floor(ch chan int){
+func Get_new_floor(ch chan int) {
 	prev_floor := driver.Elev_get_floor_sensor_signal()
 	for {
 		curr_floor := driver.Elev_get_floor_sensor_signal()
-		if(curr_floor != -1 && curr_floor != prev_floor){
+		if curr_floor != -1 && curr_floor != prev_floor {
 			ch <- curr_floor
 		}
 		prev_floor = curr_floor

@@ -1,8 +1,8 @@
 package order_manager
 
 import (
-	"driver"
 	"conf"
+	"driver"
 	"fmt"
 )
 
@@ -10,7 +10,7 @@ type Queue struct {
 	Queue_matrix [driver.N_FLOORS][driver.N_BUTTONS]bool
 }
 
-func Make_empty_queue() Queue{
+func Make_empty_queue() Queue {
 	var ret Queue
 	for f := 0; f < driver.N_FLOORS; f++ {
 		for b := 0; b < driver.N_BUTTONS; b++ {
@@ -20,7 +20,7 @@ func Make_empty_queue() Queue{
 	return ret
 }
 
-func (q *Queue)Add_order_to_queue(c chan driver.Button, o chan bool) {
+func (q *Queue) Add_order_to_queue(c chan driver.Button, o chan bool) {
 	for {
 		select {
 		case button_pressed := <-c:
@@ -32,17 +32,17 @@ func (q *Queue)Add_order_to_queue(c chan driver.Button, o chan bool) {
 	}
 }
 
-func (q *Queue)Clear_orders_at_floor(floor, dir int) {
+func (q *Queue) Clear_orders_at_floor(floor, dir int) {
 	q.Queue_matrix[floor][conf.B_CMD] = false
-	switch dir{
+	switch dir {
 	case conf.UP:
 		q.Queue_matrix[floor][conf.B_UP] = false
-		if!(q.order_above(floor)){
+		if !(q.order_above(floor)) {
 			q.Queue_matrix[floor][conf.B_DOWN] = false
 		}
 	case conf.DOWN:
-	  q.Queue_matrix[floor][conf.B_DOWN] = false
-		if!(q.order_below(floor)){
+		q.Queue_matrix[floor][conf.B_DOWN] = false
+		if !(q.order_below(floor)) {
 			q.Queue_matrix[floor][conf.B_UP] = false
 		}
 	case conf.STOP:
@@ -52,31 +52,31 @@ func (q *Queue)Clear_orders_at_floor(floor, dir int) {
 	q.set_lights()
 }
 
-func (q *Queue)set_lights(){
-	  for f:=0;f<driver.N_FLOORS;f++{
-	    for b:= 0; b<driver.N_BUTTONS;b++{
-	      if q.Queue_matrix[f][b]{
-	        driver.Elev_set_button_lamp(b,f,true)
-	      } else {
-	        driver.Elev_set_button_lamp(b,f,false)
-	      }
-	    }
-	  }
+func (q *Queue) set_lights() {
+	for f := 0; f < driver.N_FLOORS; f++ {
+		for b := 0; b < driver.N_BUTTONS; b++ {
+			if q.Queue_matrix[f][b] {
+				driver.Elev_set_button_lamp(b, f, true)
+			} else {
+				driver.Elev_set_button_lamp(b, f, false)
+			}
+		}
+	}
 }
 
-func (q *Queue)Should_stop(floor int, dir int)bool{
-	switch dir{
+func (q *Queue) Should_stop(floor int, dir int) bool {
+	switch dir {
 	case conf.UP:
-		if(q.Queue_matrix[floor][conf.B_UP] || q.Queue_matrix[floor][conf.B_CMD] || floor == driver.N_FLOORS-1 || !q.order_above(floor)){
+		if q.Queue_matrix[floor][conf.B_UP] || q.Queue_matrix[floor][conf.B_CMD] || floor == driver.N_FLOORS-1 || !q.order_above(floor) {
 			return true
 		}
 	case conf.DOWN:
-		if(q.Queue_matrix[floor][conf.B_DOWN] || q.Queue_matrix[floor][conf.B_CMD] || floor == 0 || !q.order_below(floor)){
+		if q.Queue_matrix[floor][conf.B_DOWN] || q.Queue_matrix[floor][conf.B_CMD] || floor == 0 || !q.order_below(floor) {
 			return true
 		}
 	case conf.STOP:
-		for b := 0; b < driver.N_BUTTONS; b++{
-			if(q.Queue_matrix[floor][b]){
+		for b := 0; b < driver.N_BUTTONS; b++ {
+			if q.Queue_matrix[floor][b] {
 				return true
 			}
 		}
@@ -86,67 +86,67 @@ func (q *Queue)Should_stop(floor int, dir int)bool{
 	return false
 }
 
-func (q *Queue)order_above(floor int)bool{
-	for f := floor+1; f < driver.N_FLOORS; f++{
- 		for b := 0; b < driver.N_BUTTONS; b++{
- 			if(q.Queue_matrix[f][b]){
- 				return true
- 			}
- 		}
+func (q *Queue) order_above(floor int) bool {
+	for f := floor + 1; f < driver.N_FLOORS; f++ {
+		for b := 0; b < driver.N_BUTTONS; b++ {
+			if q.Queue_matrix[f][b] {
+				return true
+			}
+		}
 	}
 	return false
 }
 
-func (q *Queue)order_below(floor int)bool{
-	for f := floor - 1; f >= 0; f--{
- 		for b := 0; b < driver.N_BUTTONS; b++{
- 			if(q.Queue_matrix[f][b]){
- 				return true
- 			}
- 		}
+func (q *Queue) order_below(floor int) bool {
+	for f := floor - 1; f >= 0; f-- {
+		for b := 0; b < driver.N_BUTTONS; b++ {
+			if q.Queue_matrix[f][b] {
+				return true
+			}
+		}
 	}
 	return false
 }
 
- func (q *Queue)is_empty()bool{
-	 for f:= 0; f<driver.N_FLOORS; f++{
-		 for b:=0;b<driver.N_BUTTONS; b++{
-			 if(q.Queue_matrix[f][b]){
-				 return false
-			 }
-		 }
-	 }
-	 return true
- }
+func (q *Queue) is_empty() bool {
+	for f := 0; f < driver.N_FLOORS; f++ {
+		for b := 0; b < driver.N_BUTTONS; b++ {
+			if q.Queue_matrix[f][b] {
+				return false
+			}
+		}
+	}
+	return true
+}
 
-func (q *Queue)Choose_dir(floor, dir int) int{ //THIS IS NOT COMMPLETE TODO
-	if q.is_empty(){
+func (q *Queue) Choose_dir(floor, dir int) int { //THIS IS NOT COMMPLETE TODO
+	if q.is_empty() {
 		return conf.STOP
 	}
-	switch dir{
+	switch dir {
 	case conf.UP:
-		if q.order_above(floor){
+		if q.order_above(floor) {
 			return conf.UP
-		}else if q.order_below(floor){
+		} else if q.order_below(floor) {
 			return conf.DOWN
-		}else{
+		} else {
 			return conf.STOP
 		}
 	case conf.DOWN:
-		if q.order_below(floor){
+		if q.order_below(floor) {
 			return conf.DOWN
-		}else if q.order_above(floor){
+		} else if q.order_above(floor) {
 			return conf.UP
 		} else {
 			return conf.STOP
 		}
 
 	case conf.STOP:
-		if q.order_above(floor){
+		if q.order_above(floor) {
 			return conf.UP
-		}else if q.order_below(floor){
+		} else if q.order_below(floor) {
 			return conf.DOWN
-		}else{
+		} else {
 			return conf.STOP
 		}
 	default:
