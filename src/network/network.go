@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"fsm"
 )
 
 /*
@@ -15,6 +16,7 @@ ANDERS SE HER!!!
 https://github.com/danielbmx/heisprosjekt/tree/master/src/networkmodule
 
 */
+
 
 type UDPMessage struct {
 	Msg   string
@@ -39,7 +41,7 @@ type Peer struct {
 
 //var serverAddr *net.UDPAddr
 //var localIP string
-var localIP string
+var localIP = "129.241.187.255" //TODO Endre dette navnet til no som har med broadcast å gjøre
 var port = ":30042"
 var peerChan = make(chan string)
 var peers []Peer
@@ -54,7 +56,7 @@ func check_error(err error) {
 // All credz Anders.
 // Brukes til å sammenligne om det er en melingbuffer[0:n],&save fra deg selv.
 // I såfall ignorer denne. 129.241.187.141
-func get_local_IP() string {
+func Get_local_IP() string {
 	conn, err := net.DialTCP("tcp4", nil, &net.TCPAddr{IP: []byte{8, 8, 8, 8}, Port: 53})
 	check_error(err)
 	defer conn.Close()
@@ -79,15 +81,15 @@ func Peers(peerChan chan string) {
 	}
 }
 
-func connection_watchdog() {
+func Check_if_connected() {
 
 }
 
-func Init(c chan Connection) {
+func Init(c chan Connection, msg_chan chan fsm.Elevator){
 	var store_conn Connection
 
-	localIP = get_local_IP()
-	fmt.Println("Your local IP: ", localIP)
+
+	fmt.Println("Your local IP: ", Get_local_IP())
 
 	// setting up UDP server for broadcasting
 	serverAddr_UDP, err := net.ResolveUDPAddr("udp", localIP+port)
@@ -97,23 +99,17 @@ func Init(c chan Connection) {
 	store_conn.ConnUDP = ConnUDP
 	store_conn.ConnTCP = nil
 
-	/*
-		// setting up TCP server for sending
-		serverAddr_TCP, err := net.ResolveTCPAddr("tcp", localIP+port)
-		check_error(err)
-		fmt.Println("3")
-		listener, err := net.ListenTCP("tcp", serverAddr_TCP)
-		check_error(err)
-		fmt.Println("4")
-		ConnTCP, err := listener.AcceptTCP()
-		fmt.Println("5")
-	*/
+	var test_msg UDPMessage
+	test_msg.Msg = "I'm aliiiiiiveeee"
+
+  go Recive_msg_UDP(msg_chan)
+	go Broadcast_UDP(c, msg_chan)
 
 	c <- store_conn
 }
 
-func Recive_msg_UDP(msg_chan chan UDPMessage) {
-	var message UDPMessage
+func Recive_msg_UDP(msg_chan chan fsm.Elevator) {
+	var message fsm.Elevator
 
 	serverAddr, err := net.ResolveUDPAddr("udp", localIP+port)
 	check_error(err)
@@ -129,27 +125,24 @@ func Recive_msg_UDP(msg_chan chan UDPMessage) {
 		n, address, err := conn.ReadFromUDP(buffer)
 		check_error(err)
 		fmt.Println("Got message from ", address)
-		json.Unmarshal(buffer[0:n], &message)
-		fmt.Println(message.Msg)
+		err = json.Unmarshal(buffer[0:n], &message)
+		check_error(err)
+		fmt.Println(message.Queue)
 		check_error(err)
 		msg_chan <- message
 	}
 }
 
-/*
-func Recive_msg_TCP(msg chan TCPMessage) {
-	var msg TCPMessage
-
-}
-*/
-func Broadcast_UDP(c chan Connection, msg UDPMessage, msg_chan chan UDPMessage) {
+func Broadcast_UDP(c chan Connection, msg_chan chan fsm.Elevator) {
 	conn_store := <-c
-
-	json_msg, err := json.Marshal(msg)
-	check_error(err)
+  var msg fsm.Elevator
 
 	for {
+		msg = fsm.TheElev
+		json_msg, err := json.Marshal(msg)
+		check_error(err)
 		fmt.Println("Sending message...")
+		fmt.Println(msg.Queue)
 		_, err = conn_store.ConnUDP.Write([]byte(json_msg))
 		check_error(err)
 		time.Sleep(1000 * time.Millisecond)
