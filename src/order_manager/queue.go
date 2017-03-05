@@ -3,7 +3,7 @@ package order_manager
 import (
 	"conf"
 	"driver"
-	"fmt"
+	"structs"
 )
 
 type Queue struct {
@@ -20,7 +20,7 @@ func Make_empty_queue() Queue {
 	return ret
 }
 
-func (q *Queue) Add_order_to_queue(c chan driver.Button, o chan bool) {
+/*func (q *Queue) Add_order_to_queue(c chan structs.Button, o chan bool) {
 	for {
 		select {
 		case button_pressed := <-c:
@@ -30,6 +30,12 @@ func (q *Queue) Add_order_to_queue(c chan driver.Button, o chan bool) {
 			o <- true
 		}
 	}
+}*/
+
+func (q *Queue) Add_order_to_queue(button_pressed structs.Button, o chan bool) {
+	q.Queue_matrix[button_pressed.Floor][button_pressed.B_type] = true
+	q.set_lights()
+	o <- true
 }
 
 func (q *Queue) Clear_orders_at_floor(floor, dir int) {
@@ -119,7 +125,7 @@ func (q *Queue) is_empty() bool {
 	return true
 }
 
-func (q *Queue) Choose_dir(floor, dir int) int { //THIS IS NOT COMMPLETE TODO
+func (q *Queue) Choose_dir(floor, dir int) int {
 	if q.is_empty() {
 		return conf.STOP
 	}

@@ -37,9 +37,9 @@ func check_error(err error) {
 	}
 }
 
-func inArray(a string, array []string) (bool, int) {
+func InArray(a fsm.Elevator, array []fsm.Elevator) (bool, int) {
 	for i := 0; i < len(array); i++ {
-		if a == array[i] {
+		if a.ID == array[i].ID {
 			return true, i
 		}
 	}
@@ -51,11 +51,11 @@ func Init(c chan Connection, msg_chan chan fsm.Elevator) {
 	localIP = Get_local_IP()
 
 	fmt.Println("Your local IP: ", localIP)
-	fsm.TheElev.ID = localIP
+	fsm.LocalElev.ID = localIP
 
 	find_other_elevators(peers, c, msg_chan)
 
-	Peers(fsm.TheElev, peers)
+	Peers(fsm.LocalElev, peers)
 
 	// setting up UDP server for broadcasting
 	serverAddr_UDP, err := net.ResolveUDPAddr("udp", broadcastIP+port)
@@ -116,7 +116,7 @@ func Peers(elev fsm.Elevator, peers []fsm.Elevator) {
 	in_peers_flag := false
 	if len(peers) == 0 {
 		fmt.Println("Peers was empty, adding this elevator as peer with address: ", elev.ID)
-		peers = append(peers, fsm.TheElev)
+		peers = append(peers, fsm.LocalElev)
 		fmt.Println("length of peers is now ", len(peers))
 	} else {
 		for i := 0; i < len(peers); i++ {
@@ -144,9 +144,9 @@ func Peers(elev fsm.Elevator, peers []fsm.Elevator) {
 func Check_if_connected() {
 	// Remember mutex
 	for {
-		fsm.TheElev.Tic++
-		if fsm.TheElev.Tic >= 30 {
-			fsm.TheElev.Active = false
+		fsm.LocalElev.Tic++
+		if fsm.LocalElev.Tic >= 30 {
+			fsm.LocalElev.Active = false
 		}
 	}
 }
@@ -181,7 +181,7 @@ func Broadcast_UDP(c chan Connection, msg_chan chan fsm.Elevator) {
 	var msg fsm.Elevator
 
 	for {
-		msg = fsm.TheElev
+		msg = fsm.LocalElev
 		json_msg, err := json.Marshal(msg)
 		check_error(err)
 		fmt.Println("Sending message...")

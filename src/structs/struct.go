@@ -1,8 +1,8 @@
 package structs
 
 type Button struct {
-	floor  int
-	b_type int
+	Floor  int
+	B_type int
 }
 
 type Channels struct {
@@ -18,4 +18,9 @@ type Fsm_channels struct { //TODO implement this
 	New_order    chan bool
 	New_floor    chan int
 	Sync_lights  chan bool
+}
+
+type UDP_queue struct {
+	IP     string
+	Button Button
 }

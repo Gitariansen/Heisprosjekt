@@ -18,16 +18,19 @@ const (
 	DOOR_OPEN
 )
 
-var TheElev Elevator
+var LocalElev Elevator
+var Elevator_list []Elevator
+var IP_list []string
 
 type Elevator struct {
 	Floor  int
-	State  int
+	State  elevator_state
 	Queue  order_manager.Queue
 	ID     string //get_local_IP
 	Dir    int
 	Tic    int
 	Active bool
+	Dur    int
 }
 
 func Elev_init_own() {
@@ -44,13 +47,17 @@ func Elev_init_own() {
 		//wait
 	}
 	driver.Elev_set_motor_direction(conf.STOP)
-	TheElev.Floor = driver.Elev_get_floor_sensor_signal()
-	driver.Elev_set_floor_indicator(TheElev.Floor)
-	TheElev.Queue = order_manager.Make_empty_queue() //TODO change make-empty-queue to update-queue
-	fmt.Println("Elevator is initialized in floor: ", TheElev.Floor+1)
+	LocalElev.State = IDLE
+	LocalElev.Dir = conf.STOP
+	LocalElev.Floor = driver.Elev_get_floor_sensor_signal()
+	driver.Elev_set_floor_indicator(LocalElev.Floor)
+	LocalElev.Queue = order_manager.Make_empty_queue() //TODO change make-empty-queue to update-queue
+	fmt.Println("Elevator is initialized in floor: ", LocalElev.Floor+1)
 }
 
-var states_test elevator_state
+func update_list() {
+
+}
 
 //hardkokt
 func open_door(Door_timeout, Door_reset chan bool) {
@@ -84,40 +91,40 @@ func Run(newOrder chan bool, newFloor chan int, Door_timeout chan bool, Door_res
 }
 
 func new_order_in_queue(Door_reset chan bool) {
-	switch states_test {
+	switch LocalElev.State {
 	case IDLE:
-		TheElev.Dir = TheElev.Queue.Choose_dir(TheElev.Floor, TheElev.Dir)
-		if TheElev.Dir == conf.STOP {
-			states_test = DOOR_OPEN
+		LocalElev.Dir = LocalElev.Queue.Choose_dir(LocalElev.Floor, LocalElev.Dir)
+		if LocalElev.Dir == conf.STOP {
+			LocalElev.State = DOOR_OPEN
 			Door_reset <- true
 			driver.Elev_set_door_open_lamp(true)
-			TheElev.Queue.Clear_orders_at_floor(TheElev.Floor, TheElev.Dir)
+			LocalElev.Queue.Clear_orders_at_floor(LocalElev.Floor, LocalElev.Dir)
 		} else {
-			driver.Elev_set_motor_direction(TheElev.Dir)
-			states_test = MOVING
+			driver.Elev_set_motor_direction(LocalElev.Dir)
+			LocalElev.State = MOVING
 		}
 	case MOVING:
 		//do nothing
 	case DOOR_OPEN:
-		TheElev.Dir = TheElev.Queue.Choose_dir(TheElev.Floor, TheElev.Dir)
-		if TheElev.Dir == conf.STOP {
+		if LocalElev.Queue.Should_stop(LocalElev.Floor, LocalElev.Dir) {
 			Door_reset <- true
-			TheElev.Queue.Clear_orders_at_floor(TheElev.Floor, TheElev.Dir)
+			driver.Elev_set_door_open_lamp(true)
+			LocalElev.Queue.Clear_orders_at_floor(LocalElev.Floor, LocalElev.Dir)
 		}
 	}
 }
 
 func arriving_at_floor(f int, Door_reset chan bool) {
-	TheElev.Floor = f
+	LocalElev.Floor = f
 	driver.Elev_set_floor_indicator(f)
-	switch states_test {
+	switch LocalElev.State {
 	case IDLE:
 		//Do nothing
 	case MOVING:
-		if TheElev.Queue.Should_stop(f, TheElev.Dir) {
+		if LocalElev.Queue.Should_stop(f, LocalElev.Dir) {
 			driver.Elev_set_motor_direction(conf.STOP)
-			TheElev.Queue.Clear_orders_at_floor(f, TheElev.Dir)
-			states_test = DOOR_OPEN
+			LocalElev.Queue.Clear_orders_at_floor(f, LocalElev.Dir)
+			LocalElev.State = DOOR_OPEN
 			Door_reset <- true
 			driver.Elev_set_door_open_lamp(true)
 		}
@@ -127,19 +134,19 @@ func arriving_at_floor(f int, Door_reset chan bool) {
 	}
 }
 func door_timeout() {
-	switch states_test {
+	switch LocalElev.State {
 	case IDLE:
 		//Do nothing
 	case MOVING:
 		//Do nothing
 	case DOOR_OPEN:
 		driver.Elev_set_door_open_lamp(false)
-		TheElev.Dir = TheElev.Queue.Choose_dir(TheElev.Floor, TheElev.Dir)
-		if TheElev.Dir == conf.STOP {
-			states_test = IDLE
+		LocalElev.Dir = LocalElev.Queue.Choose_dir(LocalElev.Floor, LocalElev.Dir)
+		if LocalElev.Dir == conf.STOP {
+			LocalElev.State = IDLE
 		} else {
-			driver.Elev_set_motor_direction(TheElev.Dir)
-			states_test = MOVING
+			driver.Elev_set_motor_direction(LocalElev.Dir)
+			LocalElev.State = MOVING
 		}
 	default:
 	}

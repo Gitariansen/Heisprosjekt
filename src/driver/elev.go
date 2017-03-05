@@ -1,14 +1,8 @@
 package driver
 
-import(
+import (
 	"conf"
 )
-
-
-type Button struct {
-	Floor  int
-	B_type int
-}
 
 const (
 	N_FLOORS  = 4
@@ -41,8 +35,6 @@ var button_channel_matrix = [N_FLOORS][N_BUTTONS]int{
 	{BUTTON_UP4, BUTTON_DOWN4, BUTTON_COMMAND4},
 }
 
-
-
 func Elev_init() {
 	Io_init() //CHECK THIS
 	for f := 0; f < N_FLOORS; f++ {
@@ -50,10 +42,10 @@ func Elev_init() {
 			Elev_set_button_lamp(b, f, false)
 		}
 	}
-	if Elev_get_floor_sensor_signal() == -1{
+	if Elev_get_floor_sensor_signal() == -1 {
 		Elev_set_motor_direction(conf.DOWN)
 	}
-	for Elev_get_floor_sensor_signal() == -1{
+	for Elev_get_floor_sensor_signal() == -1 {
 
 	}
 	Elev_set_motor_direction(conf.STOP)
