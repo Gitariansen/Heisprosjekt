@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"fsm"
 	"net"
-	"network"
 	"sort"
 	"time"
 
-	"conn"
+	"network/conn"
 )
 
 type PeerUpdate struct {
@@ -22,7 +21,35 @@ func UpdateOnlineElevators(p PeerUpdate) {
 	elev.ID = p.New
 
 	//ADDS NEW ELEVATORS TO MAP AND ACTIVATES/DEACTIVATES ELEVATORS
+
 	if len(p.New) != 0 { //IF THERE IS NEW ELEVATOR
+		fsm.Add_elevator_to_map(elev)
+		elev.Active = true
+		fsm.Update_elevator_map(elev)
+
+	}
+	if len(p.Lost) != 0 { //IF THERE IS AN ELEVATOR LOST
+		for i := 0; i < len(p.Lost); i++ {
+			elev = fsm.Melevator[p.Lost[i]]
+			elev.Active = false
+			fsm.Melevator[p.Lost[i]] = elev
+		}
+	}
+	j := 0
+	for _, v := range fsm.Melevator {
+		j++
+		fmt.Println("j: ", j)
+		fmt.Println(v.ID)
+		if v.Active == true {
+			fmt.Println("Active elevators ID's", j, v.ID)
+		}
+
+		/*for _, v := range fsm.Melevator {
+			fmt.Println("All elevators: ", v.ID)
+		}*/
+	}
+
+	/*if len(p.New) != 0 { //IF THERE IS NEW ELEVATOR
 		inArr, _ := (network.InArray(elev, fsm.Elevator_list))
 		fmt.Println("b: ", inArr)
 
@@ -50,10 +77,8 @@ func UpdateOnlineElevators(p PeerUpdate) {
 				}
 			}
 		}
-	}
+	}*/
 }
-
-//RECIEVED ALIVE SIGNALS
 
 const interval = 15 * time.Millisecond
 const timeout = 50 * time.Millisecond

@@ -1,7 +1,7 @@
 package cost
 
 import (
-	"conf"
+	"constants"
 	"fsm"
 	"time"
 )
@@ -21,7 +21,7 @@ func TimeToIdle(elev fsm.Elevator) time.Duration {
 	switch e.State {
 	case fsm.IDLE:
 		e.Dir = e.Queue.Choose_dir(e.Floor, e.Dir)
-		if e.Dir == conf.STOP {
+		if e.Dir == constants.STOP {
 			return dur
 		}
 	case fsm.MOVING:
@@ -36,7 +36,7 @@ func TimeToIdle(elev fsm.Elevator) time.Duration {
 			e.Queue.Clear_orders_at_floor(e.Floor, e.Dir)
 			dur += DoorOpenTime
 			e.Dir = e.Queue.Choose_dir(e.Floor, e.Dir)
-			if e.Dir == conf.STOP {
+			if e.Dir == constants.STOP {
 				return dur
 			}
 		}

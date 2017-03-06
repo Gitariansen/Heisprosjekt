@@ -1,4 +1,4 @@
-package conf
+package constants
 
 
 const(
@@ -11,4 +11,9 @@ const(
 	B_UP    = 0
 	B_DOWN  = 1
 	B_CMD 	= 2
+)
+
+const (
+	N_FLOORS  = 4
+	N_BUTTONS = 3
 )

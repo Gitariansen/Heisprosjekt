@@ -3,12 +3,18 @@ package structs
 type Button struct {
 	Floor  int
 	B_type int
+	Value  bool
 }
 
 type Channels struct {
 	newButtonchan chan Button
 }
 
+type Light struct {
+	Floor  int
+	B_type int
+	Value  bool
+}
 type UDP_message struct{}
 type TCP_message struct{}
 

@@ -1,12 +1,7 @@
 package driver
 
 import (
-	"conf"
-)
-
-const (
-	N_FLOORS  = 4
-	N_BUTTONS = 3
+	"constants"
 )
 
 const (
@@ -21,14 +16,14 @@ const (
 	BUTTON_COMMAND
 )
 
-var lamp_channel_matrix = [N_FLOORS][N_BUTTONS]int{
+var lamp_channel_matrix = [constants.N_FLOORS][constants.N_BUTTONS]int{
 	{LIGHT_UP1, LIGHT_DOWN1, LIGHT_COMMAND1},
 	{LIGHT_UP2, LIGHT_DOWN2, LIGHT_COMMAND2},
 	{LIGHT_UP3, LIGHT_DOWN3, LIGHT_COMMAND3},
 	{LIGHT_UP4, LIGHT_DOWN4, LIGHT_COMMAND4},
 }
 
-var button_channel_matrix = [N_FLOORS][N_BUTTONS]int{
+var button_channel_matrix = [constants.N_FLOORS][constants.N_BUTTONS]int{
 	{BUTTON_UP1, BUTTON_DOWN1, BUTTON_COMMAND1},
 	{BUTTON_UP2, BUTTON_DOWN2, BUTTON_COMMAND2},
 	{BUTTON_UP3, BUTTON_DOWN3, BUTTON_COMMAND3},
@@ -37,18 +32,18 @@ var button_channel_matrix = [N_FLOORS][N_BUTTONS]int{
 
 func Elev_init() {
 	Io_init() //CHECK THIS
-	for f := 0; f < N_FLOORS; f++ {
-		for b := 0; b < N_BUTTONS; b++ {
+	for f := 0; f < constants.N_FLOORS; f++ {
+		for b := 0; b < constants.N_BUTTONS; b++ {
 			Elev_set_button_lamp(b, f, false)
 		}
 	}
 	if Elev_get_floor_sensor_signal() == -1 {
-		Elev_set_motor_direction(conf.DOWN)
+		Elev_set_motor_direction(constants.DOWN)
 	}
 	for Elev_get_floor_sensor_signal() == -1 {
 
 	}
-	Elev_set_motor_direction(conf.STOP)
+	Elev_set_motor_direction(constants.STOP)
 }
 
 func Elev_set_motor_direction(direction int) {

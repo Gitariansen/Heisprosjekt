@@ -1,13 +1,14 @@
 package main
 
 import (
-	"bcast"
+	"constants"
 	"driver"
 	"flag"
 	"fmt"
 	"fsm"
-	"localip"
-	"peers"
+	"network/bcast"
+	"network/localip"
+	"network/peers"
 	"structs"
 	"test"
 	"time"
@@ -17,7 +18,7 @@ func main() {
 	//network.init()
 	fmt.Println("You are in main")
 	newButtonchan := make(chan structs.Button)
-	newOrderchan := make(chan bool)
+	newOrderchan := make(chan bool, 10)
 	newFloorchan := make(chan int)
 	doorTimeoutchan := make(chan bool)
 	doorResetchan := make(chan bool)
@@ -28,22 +29,26 @@ func main() {
 	// This could be used to signal that we are somehow "unavailable".
 	peerTxEnable := make(chan bool)
 	transmit_QUEUE := make(chan structs.UDP_queue)
-	fmt.Println("Initialising FSM")
-	fsm.Elev_init_own()
+	recieve_QUEUE := make(chan structs.UDP_queue)
 
+	lightSync := make(chan structs.Button, 10)
+	//lightClear := make(chan structs.Button, 10)
+	fmt.Println("Initialising FSM")
+
+	fsm.Elev_init_own()
 	//fmt.Println("Initialising Network")
 	//network.Init(conn, msg_chan)
 
-	go test.Get_Button_Press(newButtonchan)
+	go test.Get_Button_Press(newButtonchan, lightSync)
 	go test.Get_new_floor(newFloorchan)
 	go test.Update_queues(newButtonchan, newOrderchan, transmit_QUEUE)
-	go fsm.Run(newOrderchan, newFloorchan, doorTimeoutchan, doorResetchan)
-	fmt.Println("test")
+	go fsm.Run(newOrderchan, newFloorchan, doorTimeoutchan, doorResetchan, lightSync)
+	go test.Update_lights(lightSync)
 
 	var id string
 	flag.StringVar(&id, "id", "", "id of this peer")
 	flag.Parse()
-
+	//TODO Move to netowkr init
 	if id == "" {
 		localIP, err := localip.LocalIP()
 		if err != nil {
@@ -55,24 +60,32 @@ func main() {
 		fmt.Println(fmt.Println("ID is: ", id))
 	}
 
-	go peers.Transmitter(15647, id, peerTxEnable)
-	go peers.Receiver(15647, peerUpdateCh)
+	go peers.Transmitter(20142, id, peerTxEnable)
+	go peers.Receiver(20142, peerUpdateCh)
 
 	transmit_status := make(chan fsm.Elevator)
 	received_status := make(chan fsm.Elevator)
 
-	recieve_QUEUE := make(chan structs.UDP_queue)
+	light_recieve := make(chan structs.Button)
+	//light_transmit := make(chan structs.Button)
 
-	go bcast.Transmitter(16569, transmit_status)
-	go bcast.Receiver(16569, received_status)
-
-	go bcast.Receiver(17021, recieve_QUEUE)
-
+	go bcast.Transmitter(30142, transmit_status)
+	go bcast.Receiver(30142, received_status)
+	go bcast.Receiver(20143, recieve_QUEUE)
+	go bcast.Receiver(29444, light_recieve)
 	//ALIVE BROADCAST
 	go func() {
 		for {
 			transmit_status <- fsm.LocalElev
 			time.Sleep(1 * time.Second)
+		}
+	}()
+
+	go func() {
+		for {
+			a := transmit_QUEUE
+			fmt.Println("SENDING A QUEUE, ", a)
+			bcast.Transmitter(20143, a)
 		}
 	}()
 
@@ -87,10 +100,19 @@ func main() {
 				fmt.Printf("  Lost:     %q\n", p.Lost)
 
 				peers.UpdateOnlineElevators(p)
-
-			case /*a :=*/ <-received_status:
+			case l := <-light_recieve:
+				fmt.Println("Recieved a light")
+				if l.B_type != constants.B_CMD {
+					driver.Elev_set_button_lamp(l.B_type, l.Floor, l.Value)
+				}
+			case a := <-received_status:
+				//fmt.Println(a.ID)
 				//UPDATES ELEVATOR MAP
 				//TODO Finn ut hvorfor dette ikke funker:
+				if a.ID != fsm.LocalElev.ID {
+					fsm.Update_elevator_map(a)
+				}
+
 				/*if a.ID != fsm.LocalElev.ID {
 					fmt.Println("INFO FROM ", a.ID)
 					for i := 0; i < len(fsm.Elevator_list); i++ {
@@ -99,17 +121,16 @@ func main() {
 							fmt.Println("Updated: ", fsm.Elevator_list[i].ID)
 						}
 					}
-				}*/
-
-			case v := <-transmit_QUEUE:
-				fmt.Println("SENDING A QUEUE, ", v)
-				bcast.Transmitter(17021, transmit_QUEUE)
-			case q := <-recieve_QUEUE:
-				fmt.Println("RECIEVED A QUEUE", q)
-				if q.IP == fsm.LocalElev.ID {
-					newButtonchan <- q.Button
 				}
 
+				/*case v := <-transmit_QUEUE:
+				fmt.Println("SENDING A QUEUE, ", transmit_QUEUE)
+				bcast.Transmitter(20143, v)*/
+			case q := <-recieve_QUEUE:
+				if q.IP == fsm.LocalElev.ID {
+					fmt.Println("RECIEVED A QUEUE", q)
+					newButtonchan <- q.Button
+				}
 			}
 		}
 	}()
