@@ -9,12 +9,6 @@ import (
 var TravelTime = (2500 * time.Millisecond)
 var DoorOpenTime = (3000 * time.Millisecond)
 
-/*func Choose_elevator(){
-  for i := 0; i < len(fsm.Elevator_list); i++{
-    if fsm.Elevator_list[i].Active {}
-  }
-}*/
-
 func TimeToIdle(elev fsm.Elevator) time.Duration {
 	dur := 0 * time.Millisecond
 	e := elev
@@ -30,7 +24,6 @@ func TimeToIdle(elev fsm.Elevator) time.Duration {
 	case fsm.DOOR_OPEN:
 		dur += DoorOpenTime / 2
 	}
-
 	for {
 		if e.Queue.Should_stop(e.Floor, e.Dir) {
 			e.Queue.Clear_orders_at_floor(e.Floor, e.Dir)
@@ -42,5 +35,8 @@ func TimeToIdle(elev fsm.Elevator) time.Duration {
 		}
 		e.Floor = e.Floor + int(e.Dir)
 		dur += TravelTime
+		if e.Floor > 4 || e.Floor < 1 {
+			return dur
+		}
 	}
 }

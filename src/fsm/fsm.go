@@ -55,15 +55,15 @@ func Elev_init_own() {
 	LocalElev.Dir = constants.STOP
 	LocalElev.Floor = driver.Elev_get_floor_sensor_signal()
 	LocalElev.Active = true
+	LocalElev.Queue = order_manager.Make_empty_queue()
 	driver.Elev_set_floor_indicator(LocalElev.Floor)
-	LocalElev.Queue = order_manager.Make_empty_queue() //TODO change make-empty-queue to update-queue
+	//TODO change make-empty-queue to update-queue
 	Melevator = make(map[string]Elevator)
 	Add_elevator_to_map(LocalElev)
 	fmt.Println("Elevator is initialized in floor: ", LocalElev.Floor+1)
 }
 
 func Add_elevator_to_map(e Elevator) {
-	fmt.Println("Tet")
 	if _, ok := Melevator[e.ID]; ok {
 		fmt.Println("Elevator already in map")
 	} else {
@@ -99,9 +99,9 @@ func Run(newOrder chan bool, newFloor chan int, Door_timeout chan bool, Door_res
 	for {
 		select {
 		case <-newOrder:
-			e := LocalElev
-			Update_elevator_map(e)
-			new_order_in_queue(Door_reset)
+			//e := LocalElev
+			//Update_elevator_map(e)
+			new_order_in_queue(Door_reset, light_clear)
 		case floor := <-newFloor:
 			arriving_at_floor(floor, Door_reset, light_clear)
 		case <-Door_timeout:
@@ -110,7 +110,7 @@ func Run(newOrder chan bool, newFloor chan int, Door_timeout chan bool, Door_res
 	}
 }
 
-func new_order_in_queue(Door_reset chan bool) {
+func new_order_in_queue(Door_reset chan bool, light_clear chan structs.Button) {
 	switch LocalElev.State {
 	case IDLE:
 		LocalElev.Dir = LocalElev.Queue.Choose_dir(LocalElev.Floor, LocalElev.Dir)
@@ -119,6 +119,11 @@ func new_order_in_queue(Door_reset chan bool) {
 			Door_reset <- true
 			driver.Elev_set_door_open_lamp(true)
 			LocalElev.Queue.Clear_orders_at_floor(LocalElev.Floor, LocalElev.Dir)
+
+			var bup, bdwn structs.Button
+			bup, bdwn = LocalElev.Queue.Clear_lights_at_floor(LocalElev.Floor, LocalElev.Dir)
+			light_clear <- bup
+			light_clear <- bdwn
 		} else {
 			driver.Elev_set_motor_direction(LocalElev.Dir)
 			LocalElev.State = MOVING
@@ -130,6 +135,10 @@ func new_order_in_queue(Door_reset chan bool) {
 			Door_reset <- true
 			driver.Elev_set_door_open_lamp(true)
 			LocalElev.Queue.Clear_orders_at_floor(LocalElev.Floor, LocalElev.Dir)
+			var bup, bdwn structs.Button
+			bup, bdwn = LocalElev.Queue.Clear_lights_at_floor(LocalElev.Floor, LocalElev.Dir)
+			light_clear <- bup
+			light_clear <- bdwn
 		}
 	}
 }
