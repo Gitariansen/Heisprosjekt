@@ -10,6 +10,8 @@ import (
 	"network/bcast"
 	"network/localip"
 	"network/peers"
+	"os"
+	"os/signal"
 	"structs"
 	"test"
 	"time"
@@ -23,14 +25,15 @@ func main() {
 	newFloorchan := make(chan int)
 	doorTimeoutchan := make(chan bool)
 	doorResetchan := make(chan bool)
+	floorResetchan := make(chan bool)
 	// We make a channel for receiving updates on the id's of the peers that are
 	// Alive on the network
 	peerUpdateCh := make(chan peers.PeerUpdate)
 	// We can disable/enable the transmitter after it has been started.
 	// This could be used to signal that we are somehow "unavailable".
 	peerTxEnable := make(chan bool)
-	transmit_QUEUE := make(chan structs.UDP_queue, 100)
-	recieve_QUEUE := make(chan structs.UDP_queue)
+	transmit_QUEUE := make(chan structs.UDP_queue, 10)
+	recieve_QUEUE := make(chan structs.UDP_queue, 10)
 
 	light_transmit := make(chan structs.Button, 10)
 	//lightClear := make(chan structs.Button, 10)
@@ -58,7 +61,7 @@ func main() {
 	go peers.Transmitter(peer_port, id, peerTxEnable)
 	go peers.Receiver(peer_port, peerUpdateCh)
 
-	transmit_status := make(chan fsm.Elevator, 100)
+	transmit_status := make(chan fsm.Elevator, 10)
 	received_status := make(chan fsm.Elevator)
 
 	light_recieve := make(chan structs.Button, 10)
@@ -66,6 +69,7 @@ func main() {
 	alive_port := 30142
 	queue_port := 20413
 	light_port := 29444
+	// TODO Setup network init
 	go bcast.Transmitter(alive_port, transmit_status)
 	go bcast.Receiver(alive_port, received_status)
 
@@ -78,7 +82,9 @@ func main() {
 	go test.Get_Button_Press(newButtonchan)
 	go test.Get_new_floor(newFloorchan)
 	go event_manager.Order_manager(newButtonchan, newOrderchan, transmit_QUEUE, light_transmit)
-	go fsm.Run(newOrderchan, newFloorchan, doorTimeoutchan, doorResetchan, light_transmit)
+	go fsm.Run(newOrderchan, newFloorchan, doorTimeoutchan, doorResetchan, light_transmit, floorResetchan)
+	//go safeKill()
+	go fsm.CheckMotorResponse(floorResetchan)
 
 	//ALIVE BROADCAST
 	go func() {
@@ -141,4 +147,13 @@ func main() {
 			time.Sleep(1000 * time.Millisecond)
 		}
 	}
+}
+
+func safeKill() {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt)
+	<-c
+	driver.Elev_set_motor_direction(constants.STOP)
+	fsm.LocalElev.Active = false
+	os.Exit(0)
 }

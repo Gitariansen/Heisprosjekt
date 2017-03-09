@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"network/localip"
 	"order_manager"
+	"os"
 	"structs"
 	"time"
 )
@@ -21,10 +22,8 @@ const (
 )
 
 var LocalElev Elevator
-var Elevator_list []Elevator
-var IP_list []string
 
-var Melevator map[string]Elevator
+var Melevator map[string]Elevator // TODO Elendig navn, må endres!
 
 type Elevator struct {
 	Floor  int
@@ -49,6 +48,7 @@ func Elev_init_own() {
 	for driver.Elev_get_floor_sensor_signal() == -1 {
 		//wait
 	}
+
 	driver.Elev_set_motor_direction(constants.STOP)
 	LocalElev.ID, _ = localip.LocalIP()
 	LocalElev.State = IDLE
@@ -57,6 +57,7 @@ func Elev_init_own() {
 	LocalElev.Active = true
 	LocalElev.Queue = order_manager.Make_empty_queue()
 	driver.Elev_set_floor_indicator(LocalElev.Floor)
+	driver.Elev_set_door_open_lamp(false)
 	//TODO change make-empty-queue to update-queue
 	Melevator = make(map[string]Elevator)
 	Add_elevator_to_map(LocalElev)
@@ -94,18 +95,19 @@ func open_door(Door_timeout, Door_reset chan bool) {
 	}
 }
 
-func Run(newOrder chan bool, newFloor chan int, Door_timeout chan bool, Door_reset chan bool, light_clear chan structs.Button) {
+func Run(newOrder chan bool, newFloor chan int, Door_timeout chan bool, Door_reset chan bool, light_clear chan structs.Button, floor_reset chan bool) {
 	go open_door(Door_timeout, Door_reset)
 	for {
 		select {
 		case <-newOrder:
-			//e := LocalElev
-			//Update_elevator_map(e)
 			new_order_in_queue(Door_reset, light_clear)
+			floor_reset <- true //TODO RENAME THIS sHIT
 		case floor := <-newFloor:
 			arriving_at_floor(floor, Door_reset, light_clear)
+			floor_reset <- true
 		case <-Door_timeout:
 			door_timeout()
+			floor_reset <- true
 		}
 	}
 }
@@ -186,5 +188,30 @@ func door_timeout() {
 			LocalElev.State = MOVING
 		}
 	default:
+	}
+}
+
+func CheckMotorResponse(floor_reset chan bool) {
+	const length = 5 * time.Second
+	timer2 := time.NewTimer(0)
+	timer2.Stop()
+	for {
+
+		fmt.Println("1")
+		select {
+		case <-floor_reset:
+			fmt.Println("Resetting timer")
+			timer2.Reset(length)
+		case <-timer2.C:
+			fmt.Println("Gother")
+			timer2.Stop()
+			if !LocalElev.Queue.Is_empty() && LocalElev.State != DOOR_OPEN {
+				fmt.Println("Motor has stoped")
+				driver.Elev_set_motor_direction(constants.STOP)
+				LocalElev.Active = false
+				os.Exit(0)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }

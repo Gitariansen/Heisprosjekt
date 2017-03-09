@@ -32,10 +32,13 @@ func UpdateOnlineElevators(p PeerUpdate, button_chan chan structs.Button, transm
 			fmt.Println(temp.Queue)
 			for f := 0; f < constants.N_FLOORS; f++ {
 				if temp.Queue.Is_order(f, constants.B_CMD) {
-					return_btn := structs.Button{f, constants.B_CMD, true}
-					order := structs.UDP_queue{temp.ID, return_btn}
-					fmt.Println("Sending queue, ", order)
-					transmit_queue <- order //TODO failsafe this
+					for i := 0; i < 5; i++ {
+						return_btn := structs.Button{f, constants.B_CMD, true}
+						order := structs.UDP_queue{temp.ID, return_btn}
+						fmt.Println("Sending queue, ", order)
+						transmit_queue <- order //TODO failsafe this
+						time.Sleep(10 * time.Millisecond)
+					}
 				}
 			}
 		}
@@ -48,7 +51,8 @@ func UpdateOnlineElevators(p PeerUpdate, button_chan chan structs.Button, transm
 			elev.Active = false
 			fsm.Melevator[p.Lost[i]] = elev
 		}
-		if len(p.Peers) == 4 {
+		if len(p.Peers) == 1 {
+			fmt.Println("I am alone on the network")
 			fsm.LocalElev.Active = false
 		} else {
 			for i := 0; i < len(p.Lost); i++ {
