@@ -61,7 +61,6 @@ func ElevInit() {
 
 func AddElevatorToMap(e Elevator) {
 	if _, elevatorInMap := ElevatorMap[e.ID]; elevatorInMap {
-		fmt.Println("Elevator already in map")
 	} else {
 		ElevatorMap[e.ID] = e
 		fmt.Println("Elevator added to map")
