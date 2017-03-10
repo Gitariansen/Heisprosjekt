@@ -1,13 +1,13 @@
 package peers
 
 import (
-	"constants"
+	"config"
+	"driver"
 	"fmt"
-	"fsm"
 	"net"
 	"network/conn"
+	"order_manager/order_manager"
 	"sort"
-	"structs"
 	"time"
 )
 
@@ -17,79 +17,63 @@ type PeerUpdate struct {
 	Lost  []string
 }
 
-func UpdateOnlineElevators(p PeerUpdate, button_chan chan structs.Button, transmit_queue chan structs.UDP_queue) {
-	var elev fsm.Elevator
-	elev.ID = p.New
-
-	//ADDS NEW ELEVATORS TO MAP AND ACTIVATES/DEACTIVATES ELEVATORS
-
+func UpdatePeers(p PeerUpdate, button_chan chan driver.Button, transmit_queue chan config.UDP_queue, transmitLight chan driver.Button) {
+	newID := p.New
+	lostIDs := p.Lost
 	if len(p.New) != 0 { //IF THERE IS NEW ELEVATOR
-
-		if p.New == fsm.LocalElev.ID {
+		if newID == config.LocalElev.ID {
 			fmt.Println("I am the new elevator")
-		} else if _, ok := fsm.Melevator[p.New]; ok {
-			temp := fsm.Melevator[p.New]
-			fmt.Println(temp.Queue)
-			for f := 0; f < constants.N_FLOORS; f++ {
-				if temp.Queue.Is_order(f, constants.B_CMD) {
+			config.LocalElev.Active = true
+		} else if _, elevatorInMap := config.ElevatorMap[newID]; elevatorInMap { //if elevator with newID is in map
+			newElevCopy := config.ElevatorMap[newID]
+			for f := 0; f < driver.N_FLOORS; f++ {
+				if newElevCopy.Queue.Is_order(f, driver.B_CMD) {
 					for i := 0; i < 5; i++ {
-						return_btn := structs.Button{f, constants.B_CMD, true}
-						order := structs.UDP_queue{temp.ID, return_btn}
+						orderButton := driver.Button{Floor: f, B_type: driver.B_CMD, Value: true}
+						order := config.UDP_queue{IP: newElevCopy.ID, Button: orderButton}
 						fmt.Println("Sending queue, ", order)
-						transmit_queue <- order //TODO failsafe this
+						transmit_queue <- order
 						time.Sleep(10 * time.Millisecond)
 					}
 				}
 			}
+			order_manager.SyncHallLights(transmitLight)
+		} else {
+			var elev config.Elevator
+			elev.ID = newID
+			config.Add_elevator_to_map(elev)
 		}
-		elev.Active = true
-		fsm.Update_elevator_map(elev)
 	}
 	if len(p.Lost) != 0 { //IF THERE IS AN ELEVATOR LOST
-		for i := 0; i < len(p.Lost); i++ {
-			elev := fsm.Melevator[p.Lost[i]]
+		for i := 0; i < len(lostIDs); i++ {
+			elev := config.ElevatorMap[lostIDs[i]]
 			elev.Active = false
-			fsm.Melevator[p.Lost[i]] = elev
+			config.ElevatorMap[p.Lost[i]] = elev
 		}
-		if len(p.Peers) == 1 {
+		if len(p.Peers) == 0 {
 			fmt.Println("I am alone on the network")
-			fsm.LocalElev.Active = false
+			config.LocalElev.Active = false
 		} else {
 			for i := 0; i < len(p.Lost); i++ {
-				temp_queue := fsm.Melevator[p.Lost[i]].Queue
-				for b := 0; b < constants.N_BUTTONS-1; b++ {
-					for f := 0; f < constants.N_FLOORS; f++ {
+				temp_queue := config.ElevatorMap[p.Lost[i]].Queue
+				for b := 0; b < driver.N_BUTTONS-1; b++ {
+					for f := 0; f < driver.N_FLOORS; f++ {
 						if temp_queue.Is_order(f, b) {
 							fmt.Println("Adding order to queue, floor: ", f, " button: ", b)
-							return_btn := structs.Button{f, b, true}
+							return_btn := driver.Button{Floor: f, B_type: b, Value: true}
 							button_chan <- return_btn
 							temp_queue.Clear_order(f, b)
 						}
 					}
 				}
-				v2 := fsm.Melevator[p.Lost[i]]
-				v2.Queue = temp_queue
-				fsm.Melevator[p.Lost[i]] = v2
-				fmt.Println(v2.Queue)
+				elev := config.ElevatorMap[p.Lost[i]]
+				elev.Queue = temp_queue
+				config.ElevatorMap[p.Lost[i]] = elev
+				fmt.Println(elev.Queue)
 			}
 		}
 
 	}
-
-	j := 0
-	for _, v := range fsm.Melevator {
-		j++
-		fmt.Println("j: ", j)
-		fmt.Println(v.ID)
-		if v.Active == true {
-			fmt.Println("Active elevators ID's", j, v.ID)
-		}
-
-		/*for _, v := range fsm.Melevator {
-			fmt.Println("All elevators: ", v.ID)
-		}*/
-	}
-
 }
 
 const interval = 15 * time.Millisecond

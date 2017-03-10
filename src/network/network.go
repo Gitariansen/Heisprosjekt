@@ -1,194 +1,103 @@
 package network
 
 import (
-	//"encoding/binary"
-	"encoding/json"
+	"config"
+	"driver"
+	"flag"
 	"fmt"
-	"fsm"
-	"net"
-	"os"
-	"strings"
+	"network/bcast"
+	"network/localip"
+	"network/peers"
 	"time"
 )
 
-/*
+var transmitStatus chan config.Elevator
+var receiveStatus chan config.Elevator
+var transmitPeer chan bool
+var receivePeer chan peers.PeerUpdate
 
-ANDERS SE HER!!!
-https://github.com/danielbmx/heisprosjekt/tree/master/src/networkmodule
+var receiveQueue chan config.UDP_queue
 
-*/
+var receiveLight chan driver.Button
 
-type Connection struct {
-	ConnUDP *net.UDPConn
-	ConnTCP *net.TCPConn
-}
+func Init(newButton chan driver.Button, newOrder chan bool, transmitQueue chan config.UDP_queue, transmitLight chan driver.Button) {
+	var id string
+	flag.StringVar(&id, "id", "", "id of this peer")
+	flag.Parse()
 
-//var serverAddr *net.UDPAddr
-var localIP string
-var broadcastIP = "129.241.187.255"
-var port = ":30083"
-var peerChan = make(chan string)
-var peers []fsm.Elevator
-
-func check_error(err error) {
-	if err != nil {
-		fmt.Println("Error: ", err)
-		os.Exit(0)
-	}
-}
-
-func InArray(a fsm.Elevator, array []fsm.Elevator) (bool, int) {
-	for i := 0; i < len(array); i++ {
-		if a.ID == array[i].ID {
-			return true, i
+	if id == "" {
+		localIP, err := localip.LocalIP()
+		if err != nil {
+			fmt.Println(err)
+			localIP = "DISCONNECTED"
 		}
+		id = fmt.Sprintf(localIP)
+		fmt.Println(fmt.Println("ID is: ", id))
 	}
-	return false, 0
-}
 
-func Init(c chan Connection, msg_chan chan fsm.Elevator) {
-	var store_conn Connection
-	localIP = Get_local_IP()
+	peer_port := 20142
+	alive_port := 30142
+	queue_port := 20413
+	light_port := 29444
 
-	fmt.Println("Your local IP: ", localIP)
-	fsm.LocalElev.ID = localIP
+	transmitStatus = make(chan config.Elevator, 10)
+	receiveStatus = make(chan config.Elevator)
+	receivePeer = make(chan peers.PeerUpdate)
+	transmitPeer = make(chan bool)
+	//transmitQueue = make(chan config.UDP_queue, 10)
+	receiveQueue = make(chan config.UDP_queue, 10)
+	receiveLight = make(chan driver.Button, 10)
+	//transmitLight = make(chan driver.Button, 10)
 
-	find_other_elevators(peers, c, msg_chan)
+	go bcast.Transmitter(alive_port, transmitStatus)
+	go bcast.Receiver(alive_port, receiveStatus)
+	go bcast.Transmitter(queue_port, transmitQueue)
+	go bcast.Receiver(queue_port, receiveQueue)
+	go bcast.Transmitter(light_port, transmitLight)
+	go bcast.Receiver(light_port, receiveLight)
+	go peers.Transmitter(peer_port, id, transmitPeer)
+	go peers.Receiver(peer_port, receivePeer)
 
-	Peers(fsm.LocalElev, peers)
-
-	// setting up UDP server for broadcasting
-	serverAddr_UDP, err := net.ResolveUDPAddr("udp", broadcastIP+port)
-	check_error(err)
-
-	ConnUDP, err := net.DialUDP("udp", nil, serverAddr_UDP)
-	check_error(err)
-
-	store_conn.ConnUDP = ConnUDP
-	store_conn.ConnTCP = nil
-
-	go Recive_msg_UDP(msg_chan)
-	go Broadcast_UDP(c, msg_chan)
-
-	c <- store_conn
-}
-
-func find_other_elevators(peers []fsm.Elevator, c chan Connection, msg_chan chan fsm.Elevator) {
-	var message fsm.Elevator
-	i := false
-	//making a temporary connection
-	serverAddr, err := net.ResolveUDPAddr("udp", broadcastIP+port)
-	check_error(err)
-	conn, err := net.ListenUDP("udp", serverAddr)
-	check_error(err)
-
-	buffer := make([]byte, 1024)
-	conn.SetReadDeadline(time.Now().Add(time.Second * 5))
-	for !(i) {
-		fmt.Println("iter")
-		n, _, err := conn.ReadFromUDP(buffer)
-		err = json.Unmarshal(buffer[0:n], &message)
-		if err == nil {
-			fmt.Println("err = nil, I recieved a message")
-			Peers(message, peers)
-		} else {
-			i = true
-			fmt.Println("There was an error, I am the only elevator")
-		}
-	}
-	conn.Close()
+	go handleIncomingMessages(newButton, newOrder, transmitQueue, transmitLight)
+	go periodicStatusUpdate()
 
 }
 
-// All credz Anders.
-// Brukes til å sammenligne om det er en melingbuffer[0:n],&save fra deg selv.
-// I såfall ignorer denne. 129.241.187.141
-func Get_local_IP() string {
-	conn, err := net.DialTCP("tcp4", nil, &net.TCPAddr{IP: []byte{8, 8, 8, 8}, Port: 53})
-	check_error(err)
-	defer conn.Close()
+func handleIncomingMessages(newButton chan driver.Button, newOrder chan bool, transmitQueue chan config.UDP_queue, transmitLight chan driver.Button) {
+	for {
+		select {
+		case p := <-receivePeer:
+			fmt.Printf("Peer update:\n")
+			fmt.Printf("  Peers:    %q\n", p.Peers)
+			fmt.Printf("  New:      %q\n", p.New)
+			fmt.Printf("  Lost:     %q\n", p.Lost)
 
-	localIP := strings.Split(conn.LocalAddr().String(), ":")[0]
-	return localIP
-}
+			peers.UpdatePeers(p, newButton, transmitQueue, transmitLight)
 
-func Peers(elev fsm.Elevator, peers []fsm.Elevator) {
-	in_peers_flag := false
-	if len(peers) == 0 {
-		fmt.Println("Peers was empty, adding this elevator as peer with address: ", elev.ID)
-		peers = append(peers, fsm.LocalElev)
-		fmt.Println("length of peers is now ", len(peers))
-	} else {
-		for i := 0; i < len(peers); i++ {
-			if elev == peers[i] {
-				in_peers_flag = true
-				fmt.Println("Peer already exists")
-				elev.Active = true
-				elev.Tic = 0
+		case l := <-receiveLight:
+			if l.B_type != driver.B_CMD {
+				driver.Elev_set_button_lamp(l.B_type, l.Floor, l.Value)
 			}
-			if !in_peers_flag {
-				fmt.Println("Adding new peer with address:", elev.ID)
-				elev.Active = true
-				elev.Tic = 0
-				peers = append(peers, elev)
+
+		case a := <-receiveStatus:
+			if a.ID != config.LocalElev.ID {
+				config.Update_elevator_map(a)
+			}
+		case q := <-receiveQueue:
+			if q.IP == config.LocalElev.ID {
+				fmt.Println("RECIEVED A QUEUE", q)
+				config.LocalElev.Queue.Add_order_to_queue(q.Button, newOrder)
+				transmitLight <- q.Button
 			}
 		}
 	}
-	fmt.Println("Currently active peers: ")
-	for i := 0; i < len(peers); i++ {
-		fmt.Println("	", peers[i].ID)
-
-	}
 }
 
-func Check_if_connected() {
-	// Remember mutex
+func periodicStatusUpdate() {
+	time.Sleep(1 * time.Second) //wait for other incoming messages
+	fmt.Println("Started Alive-spam")
 	for {
-		fsm.LocalElev.Tic++
-		if fsm.LocalElev.Tic >= 30 {
-			fsm.LocalElev.Active = false
-		}
-	}
-}
-
-func Recive_msg_UDP(msg_chan chan fsm.Elevator) {
-	var message fsm.Elevator
-
-	serverAddr, err := net.ResolveUDPAddr("udp", broadcastIP+port)
-	check_error(err)
-
-	conn, err := net.ListenUDP("udp", serverAddr)
-	check_error(err)
-	defer conn.Close()
-
-	buffer := make([]byte, 1024)
-
-	for {
-		n, address, err := conn.ReadFromUDP(buffer)
-		check_error(err)
-		//Peers(address.IP.String())
-		fmt.Println("Got message from ", address)
-		err = json.Unmarshal(buffer[0:n], &message)
-		check_error(err)
-		//fmt.Println(message.Queue)
-		check_error(err)
-		msg_chan <- message
-	}
-}
-
-func Broadcast_UDP(c chan Connection, msg_chan chan fsm.Elevator) {
-	conn_store := <-c
-	var msg fsm.Elevator
-
-	for {
-		msg = fsm.LocalElev
-		json_msg, err := json.Marshal(msg)
-		check_error(err)
-		fmt.Println("Sending message...")
-		//fmt.Println(msg.Queue)
-		_, err = conn_store.ConnUDP.Write([]byte(json_msg))
-		check_error(err)
-		time.Sleep(1000 * time.Millisecond)
-		<-msg_chan
+		transmitStatus <- config.LocalElev
+		time.Sleep(1 * time.Second)
 	}
 }

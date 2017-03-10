@@ -1,85 +1,118 @@
 package fsm
 
 import (
-	"constants"
+	"config"
 	"driver"
 	"fmt"
-	"network/localip"
-	"order_manager"
 	"os"
-	"structs"
+	"os/signal"
 	"time"
 )
 
-/**/
-//elevator states, TODO move to config
-type elevator_state int
-
-const (
-	IDLE elevator_state = iota
-	MOVING
-	DOOR_OPEN
-)
-
-var LocalElev Elevator
-
-var Melevator map[string]Elevator // TODO Elendig navn, må endres!
-
-type Elevator struct {
-	Floor  int
-	State  elevator_state
-	Queue  order_manager.Queue
-	ID     string
-	Dir    int
-	Tic    int
-	Active bool
+func Init(newOrder chan bool, newFloor chan int, doorTimeout chan bool, doorReset chan bool, floorReset chan bool, transmitLight chan driver.Button) {
+	go runFSM(newOrder, newFloor, doorTimeout, doorReset, transmitLight, floorReset)
+	go openDoor(doorTimeout, doorReset)
+	go checkMotorResponse(floorReset)
+	go safeKill()
 }
 
-func Elev_init_own() {
-	driver.Io_init()
-	for f := 0; f < constants.N_FLOORS; f++ {
-		for b := 0; b < constants.N_BUTTONS; b++ {
-			driver.Elev_set_button_lamp(b, f, false)
+func runFSM(newOrder chan bool, newFloor chan int, Door_timeout chan bool, Door_reset chan bool, light_clear chan driver.Button, floor_reset chan bool) {
+	for {
+		select {
+		case <-newOrder:
+			newOrderInQueue(Door_reset, light_clear)
+			floor_reset <- true //TODO RENAME THIS sHIT
+		case floor := <-newFloor:
+			arrivingAtFloor(floor, Door_reset, light_clear)
+			floor_reset <- true
+		case <-Door_timeout:
+			doorTimeout()
+			floor_reset <- true
 		}
 	}
-	if driver.Elev_get_floor_sensor_signal() == -1 {
-		driver.Elev_set_motor_direction(constants.DOWN)
-	}
-	for driver.Elev_get_floor_sensor_signal() == -1 {
-		//wait
-	}
-
-	driver.Elev_set_motor_direction(constants.STOP)
-	LocalElev.ID, _ = localip.LocalIP()
-	LocalElev.State = IDLE
-	LocalElev.Dir = constants.STOP
-	LocalElev.Floor = driver.Elev_get_floor_sensor_signal()
-	LocalElev.Active = true
-	LocalElev.Queue = order_manager.Make_empty_queue()
-	driver.Elev_set_floor_indicator(LocalElev.Floor)
-	driver.Elev_set_door_open_lamp(false)
-	//TODO change make-empty-queue to update-queue
-	Melevator = make(map[string]Elevator)
-	Add_elevator_to_map(LocalElev)
-	fmt.Println("Elevator is initialized in floor: ", LocalElev.Floor+1)
 }
 
-func Add_elevator_to_map(e Elevator) {
-	if _, ok := Melevator[e.ID]; ok {
-		fmt.Println("Elevator already in map")
-	} else {
-		Melevator[e.ID] = e
-		fmt.Println("Elevator added to map")
+func newOrderInQueue(Door_reset chan bool, light_clear chan driver.Button) {
+	switch config.LocalElev.State {
+	case config.IDLE:
+		config.LocalElev.Dir = config.LocalElev.Queue.Choose_dir(config.LocalElev.Floor, config.LocalElev.Dir)
+		if config.LocalElev.Dir == driver.DIR_STOP {
+			config.LocalElev.State = config.DOOR_OPEN
+			Door_reset <- true
+			driver.Elev_set_door_open_lamp(true)
+			config.LocalElev.Queue.Clear_orders_at_floor(config.LocalElev.Floor, config.LocalElev.Dir)
+			//TODO make subfunction
+			var bup, bdwn driver.Button
+			bup, bdwn = config.LocalElev.Queue.Clear_lights_at_floor(config.LocalElev.Floor, config.LocalElev.Dir)
+			light_clear <- bup
+			light_clear <- bdwn
+		} else {
+			driver.Elev_set_motor_direction(config.LocalElev.Dir)
+			config.LocalElev.State = config.MOVING
+		}
+	case config.MOVING:
+		//do nothing
+	case config.DOOR_OPEN:
+		if config.LocalElev.Queue.Should_stop(config.LocalElev.Floor, config.LocalElev.Dir) {
+			Door_reset <- true
+			driver.Elev_set_door_open_lamp(true)
+			config.LocalElev.Queue.Clear_orders_at_floor(config.LocalElev.Floor, config.LocalElev.Dir)
+			var bup, bdwn driver.Button
+			bup, bdwn = config.LocalElev.Queue.Clear_lights_at_floor(config.LocalElev.Floor, config.LocalElev.Dir)
+			light_clear <- bup
+			light_clear <- bdwn
+		}
 	}
 }
 
-func Update_elevator_map(e Elevator) {
-	Melevator[e.ID] = e
-	fmt.Println("UPDATED: ")
+func arrivingAtFloor(f int, Door_reset chan bool, light_clear chan driver.Button) {
+	config.LocalElev.Floor = f
+	var bup, bdwn driver.Button
+	driver.Elev_set_floor_indicator(f)
+	switch config.LocalElev.State {
+	case config.IDLE:
+		//Do nothing
+	case config.MOVING:
+		if config.LocalElev.Queue.Should_stop(f, config.LocalElev.Dir) {
+			driver.Elev_set_motor_direction(driver.DIR_STOP)
+			config.LocalElev.Queue.Clear_orders_at_floor(f, config.LocalElev.Dir)
+
+			config.LocalElev.State = config.DOOR_OPEN
+			Door_reset <- true
+			driver.Elev_set_door_open_lamp(true)
+			bup, bdwn = config.LocalElev.Queue.Clear_lights_at_floor(f, config.LocalElev.Dir)
+
+			light_clear <- bup
+
+			light_clear <- bdwn
+
+		}
+	case config.DOOR_OPEN:
+		//Do nothing
+	default:
+	}
+}
+func doorTimeout() {
+	switch config.LocalElev.State {
+	case config.IDLE:
+		//Do nothing
+	case config.MOVING:
+		//Do nothing
+	case config.DOOR_OPEN:
+		driver.Elev_set_door_open_lamp(false)
+		config.LocalElev.Dir = config.LocalElev.Queue.Choose_dir(config.LocalElev.Floor, config.LocalElev.Dir)
+		if config.LocalElev.Dir == driver.DIR_STOP {
+			config.LocalElev.State = config.IDLE
+		} else {
+			driver.Elev_set_motor_direction(config.LocalElev.Dir)
+			config.LocalElev.State = config.MOVING
+		}
+	default:
+	}
 }
 
 //hardkokt
-func open_door(Door_timeout, Door_reset chan bool) {
+func openDoor(Door_timeout, Door_reset chan bool) {
 	const length = 3 * time.Second
 	timer := time.NewTimer(0)
 	timer.Stop()
@@ -95,103 +128,7 @@ func open_door(Door_timeout, Door_reset chan bool) {
 	}
 }
 
-func Run(newOrder chan bool, newFloor chan int, Door_timeout chan bool, Door_reset chan bool, light_clear chan structs.Button, floor_reset chan bool) {
-	go open_door(Door_timeout, Door_reset)
-	for {
-		select {
-		case <-newOrder:
-			new_order_in_queue(Door_reset, light_clear)
-			floor_reset <- true //TODO RENAME THIS sHIT
-		case floor := <-newFloor:
-			arriving_at_floor(floor, Door_reset, light_clear)
-			floor_reset <- true
-		case <-Door_timeout:
-			door_timeout()
-			floor_reset <- true
-		}
-	}
-}
-
-func new_order_in_queue(Door_reset chan bool, light_clear chan structs.Button) {
-	switch LocalElev.State {
-	case IDLE:
-		LocalElev.Dir = LocalElev.Queue.Choose_dir(LocalElev.Floor, LocalElev.Dir)
-		if LocalElev.Dir == constants.STOP {
-			LocalElev.State = DOOR_OPEN
-			Door_reset <- true
-			driver.Elev_set_door_open_lamp(true)
-			LocalElev.Queue.Clear_orders_at_floor(LocalElev.Floor, LocalElev.Dir)
-
-			var bup, bdwn structs.Button
-			bup, bdwn = LocalElev.Queue.Clear_lights_at_floor(LocalElev.Floor, LocalElev.Dir)
-			light_clear <- bup
-			light_clear <- bdwn
-		} else {
-			driver.Elev_set_motor_direction(LocalElev.Dir)
-			LocalElev.State = MOVING
-		}
-	case MOVING:
-		//do nothing
-	case DOOR_OPEN:
-		if LocalElev.Queue.Should_stop(LocalElev.Floor, LocalElev.Dir) {
-			Door_reset <- true
-			driver.Elev_set_door_open_lamp(true)
-			LocalElev.Queue.Clear_orders_at_floor(LocalElev.Floor, LocalElev.Dir)
-			var bup, bdwn structs.Button
-			bup, bdwn = LocalElev.Queue.Clear_lights_at_floor(LocalElev.Floor, LocalElev.Dir)
-			light_clear <- bup
-			light_clear <- bdwn
-		}
-	}
-}
-
-func arriving_at_floor(f int, Door_reset chan bool, light_clear chan structs.Button) {
-	LocalElev.Floor = f
-	var bup, bdwn structs.Button
-	driver.Elev_set_floor_indicator(f)
-	switch LocalElev.State {
-	case IDLE:
-		//Do nothing
-	case MOVING:
-		if LocalElev.Queue.Should_stop(f, LocalElev.Dir) {
-			driver.Elev_set_motor_direction(constants.STOP)
-			LocalElev.Queue.Clear_orders_at_floor(f, LocalElev.Dir)
-
-			LocalElev.State = DOOR_OPEN
-			Door_reset <- true
-			driver.Elev_set_door_open_lamp(true)
-			bup, bdwn = LocalElev.Queue.Clear_lights_at_floor(f, LocalElev.Dir)
-
-			light_clear <- bup
-
-			light_clear <- bdwn
-
-		}
-	case DOOR_OPEN:
-		//Do nothing
-	default:
-	}
-}
-func door_timeout() {
-	switch LocalElev.State {
-	case IDLE:
-		//Do nothing
-	case MOVING:
-		//Do nothing
-	case DOOR_OPEN:
-		driver.Elev_set_door_open_lamp(false)
-		LocalElev.Dir = LocalElev.Queue.Choose_dir(LocalElev.Floor, LocalElev.Dir)
-		if LocalElev.Dir == constants.STOP {
-			LocalElev.State = IDLE
-		} else {
-			driver.Elev_set_motor_direction(LocalElev.Dir)
-			LocalElev.State = MOVING
-		}
-	default:
-	}
-}
-
-func CheckMotorResponse(floor_reset chan bool) {
+func checkMotorResponse(floor_reset chan bool) {
 	const length = 5 * time.Second
 	timer2 := time.NewTimer(0)
 	timer2.Stop()
@@ -205,13 +142,22 @@ func CheckMotorResponse(floor_reset chan bool) {
 		case <-timer2.C:
 			fmt.Println("Gother")
 			timer2.Stop()
-			if !LocalElev.Queue.Is_empty() && LocalElev.State != DOOR_OPEN {
+			if !config.LocalElev.Queue.Is_empty() && config.LocalElev.State != config.DOOR_OPEN {
 				fmt.Println("Motor has stoped")
-				driver.Elev_set_motor_direction(constants.STOP)
-				LocalElev.Active = false
+				driver.Elev_set_motor_direction(driver.DIR_STOP)
+				config.LocalElev.Active = false
 				os.Exit(0)
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
+}
+
+func safeKill() {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt)
+	<-c
+	driver.Elev_set_motor_direction(driver.DIR_STOP)
+	config.LocalElev.Active = false
+	os.Exit(0)
 }

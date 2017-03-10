@@ -1,63 +1,35 @@
 package event_manager
 
 import (
-	"constants"
-	"cost"
-	"fmt"
-	"fsm"
-	"structs"
+	"driver"
 	"time"
 )
 
-func Order_manager(b chan structs.Button, o chan bool, q chan structs.UDP_queue, l chan structs.Button) {
-
+func Get_Button_Press(c chan driver.Button) {
+	var button_pressed driver.Button
 	for {
-	loop:
-		select {
-		case button_pressed := <-b:
-			if button_pressed.B_type == constants.B_CMD {
-				fsm.LocalElev.Queue.Add_order_to_queue(button_pressed, o)
-			} else if fsm.LocalElev.Active {
-				for _, v := range fsm.Melevator {
-					if v.Active && v.Queue.Is_order(button_pressed.Floor, button_pressed.B_type) {
-						fmt.Println("Order is already in someone's queue")
-						break loop
-					}
+		for floor := 0; floor < driver.N_FLOORS; floor++ {
+			for button := 0; button < driver.N_BUTTONS; button++ {
+				if driver.Elev_get_button_signal(button, floor) == 1 {
+					button_pressed.Floor = floor
+					button_pressed.B_type = button
+					button_pressed.Value = true
+					c <- button_pressed
+					time.Sleep(500 * time.Millisecond)
 				}
-				fmt.Println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-				//fmt.Println("a")
-				return_ID := fsm.LocalElev.ID
-				fmt.Println("a")
-				shortestTime := cost.TimeToIdle(fsm.LocalElev)
-				for IP, v := range fsm.Melevator {
-					//fmt.Println("Evaluating elevator: ", IP)
-					if v.Active {
-						v2 := v
-						v2.Queue.Queue_matrix[button_pressed.Floor][button_pressed.B_type] = true
-						new_time := cost.TimeToIdle(v2)
-						if new_time < shortestTime {
-							shortestTime = new_time
-							return_ID = IP
-						}
-					}
-					fmt.Println("return ID: ", return_ID)
-				}
-				if return_ID == fsm.LocalElev.ID {
-					fmt.Println("Local elevator was chosen")
-					fsm.LocalElev.Queue.Add_order_to_queue(button_pressed, o)
-					fmt.Println("Light sent")
-					l <- button_pressed
-					time.Sleep(10 * time.Millisecond)
-				} else {
-					fmt.Println("Elevator with ID chosen: ", return_ID)
-					var temp structs.UDP_queue
-					temp.IP = return_ID
-					temp.Button = button_pressed
-					q <- temp
-				}
-
 			}
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func Get_new_floor(ch chan int) {
+	prev_floor := driver.Elev_get_floor_sensor_signal()
+	for {
+		curr_floor := driver.Elev_get_floor_sensor_signal()
+		if curr_floor != -1 && curr_floor != prev_floor {
+			ch <- curr_floor
+		}
+		prev_floor = curr_floor
 	}
 }
