@@ -1,5 +1,9 @@
 package localip
 
+/*
+Code provided by klasbo
+https://github.com/TTK4145/Network-go/tree/master/network
+*/
 import (
 	"net"
 	"strings"

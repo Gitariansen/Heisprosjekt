@@ -1,10 +1,14 @@
 package bcast
 
+/*
+Code provided by klasbo
+https://github.com/TTK4145/Network-go/tree/master/network
+*/
 import (
-	"network/conn"
 	"encoding/json"
 	"fmt"
 	"net"
+	"network/conn"
 	"reflect"
 	"strings"
 )

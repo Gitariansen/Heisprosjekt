@@ -4,26 +4,26 @@ package driver /* need io.go, io.c, io,h, channels.go, channels.h and driver.go*
 //#include "io.h"
 import "C"
 
-func Io_init() {
+func IoInit() {
 	C.io_init()
 }
 
-func Io_set_bit(channel int) {
+func IoSetBit(channel int) {
 	C.io_set_bit(C.int(channel))
 }
 
-func Io_clear_bit(channel int) {
+func IoClearBit(channel int) {
 	C.io_clear_bit(C.int(channel))
 }
 
-func Io_read_bit(channel int) int {
+func IoReadBit(channel int) int {
 	return int(C.io_read_bit(C.int(channel)))
 }
 
-func Io_read_analog(channel int) int {
+func IoReadAnalog(channel int) int {
 	return int(C.io_read_analog(C.int(channel)))
 }
 
-func Io_write_analog(channel int, value int) {
+func IoWriteAnalog(channel int, value int) {
 	C.io_write_analog(C.int(channel), C.int(value))
 }

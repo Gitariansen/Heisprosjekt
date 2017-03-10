@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 	"network/conn"
-	"order_manager/order_manager"
+	"orderManager"
 	"sort"
 	"time"
 )
@@ -17,62 +17,66 @@ type PeerUpdate struct {
 	Lost  []string
 }
 
-func UpdatePeers(p PeerUpdate, newButton chan driver.Button, transmit_queue chan config.UDP_queue, transmitLight chan driver.Button) {
-	newID := p.New
-	lostIDs := p.Lost
-	if len(p.New) != 0 { //IF THERE IS NEW ELEVATOR
+func UpdatePeers(receivedPeer PeerUpdate, newButton chan driver.Button, transmitQueue chan config.QueueMessage, transmitLight chan driver.Button) {
+	newID := receivedPeer.New
+	lostIDs := receivedPeer.Lost
+	if len(receivedPeer.New) != 0 {
 		if newID == config.LocalElev.ID {
-			fmt.Println("I am the new elevator")
+			fmt.Println("I am the new elevator on the network")
 			config.LocalElev.Active = true
 		} else if _, elevatorInMap := config.ElevatorMap[newID]; elevatorInMap {
 			newElevCopy := config.ElevatorMap[newID]
 			for f := 0; f < driver.N_FLOORS; f++ {
-				if newElevCopy.Queue.Is_order(f, driver.B_CMD) {
+				if newElevCopy.Queue.IsOrder(f, driver.BTN_CMD) {
 					for i := 0; i < 5; i++ {
-						orderButton := driver.Button{Floor: f, B_type: driver.B_CMD, Value: true}
-						order := config.UDP_queue{IP: newElevCopy.ID, Button: orderButton}
-						transmit_queue <- order
+						orderButton := driver.Button{Floor: f, BtnType: driver.BTN_CMD, Value: true}
+						order := config.QueueMessage{IP: newElevCopy.ID, Button: orderButton}
+						transmitQueue <- order
 						time.Sleep(10 * time.Millisecond)
 					}
 				}
 			}
-			order_manager.SyncHallLights(transmitLight)
+			orderManager.SyncHallLights(transmitLight)
 		} else {
 			var elev config.Elevator
 			elev.ID = newID
-			config.Add_elevator_to_map(elev)
+			config.AddElevatorToMap(elev)
 		}
 	}
-	if len(p.Lost) != 0 { //IF THERE IS AN ELEVATOR LOST
+	if len(receivedPeer.Lost) != 0 {
 		for i := 0; i < len(lostIDs); i++ {
-			elev := config.ElevatorMap[lostIDs[i]]
-			elev.Active = false
-			config.ElevatorMap[p.Lost[i]] = elev
+			lostElev := config.ElevatorMap[lostIDs[i]]
+			lostElev.Active = false
+			config.ElevatorMap[receivedPeer.Lost[i]] = lostElev
 		}
-		if len(p.Peers) == 0 {
+		if len(receivedPeer.Peers) == 0 {
 			fmt.Println("I am alone on the network")
 			config.LocalElev.Active = false
 		} else {
-			for i := 0; i < len(p.Lost); i++ {
-				redistributeQueue := config.ElevatorMap[p.Lost[i]].Queue
+			for i := 0; i < len(receivedPeer.Lost); i++ {
+				redistributeQueue := config.ElevatorMap[receivedPeer.Lost[i]].Queue
 				for b := 0; b < driver.N_BUTTONS-1; b++ {
 					for f := 0; f < driver.N_FLOORS; f++ {
-						if redistributeQueue.Is_order(f, b) {
-							newOrder := driver.Button{Floor: f, B_type: b, Value: true}
+						if redistributeQueue.IsOrder(f, b) {
+							newOrder := driver.Button{Floor: f, BtnType: b, Value: true}
 							newButton <- newOrder
-							redistributeQueue.Clear_order(f, b)
+							redistributeQueue.ClearOrder(f, b)
 						}
 					}
 				}
-				elev := config.ElevatorMap[p.Lost[i]]
-				elev.Queue = redistributeQueue
-				config.ElevatorMap[p.Lost[i]] = elev
+				lostElev := config.ElevatorMap[receivedPeer.Lost[i]]
+				lostElev.Queue = redistributeQueue
+				config.ElevatorMap[receivedPeer.Lost[i]] = lostElev
 			}
 		}
 
 	}
 }
 
+/*
+Code belowd provided by klasbo
+https://github.com/TTK4145/Network-go/tree/master/network
+*/
 const interval = 15 * time.Millisecond
 const timeout = 50 * time.Millisecond
 
