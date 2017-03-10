@@ -2,7 +2,6 @@ package config
 
 import (
 	"driver"
-	"fmt"
 	"network/localip"
 	"orderManager/queue"
 )
@@ -56,14 +55,13 @@ func ElevInit() {
 	LocalElev.Active = true
 	LocalElev.Queue = queue.MakeEmptyQueue()
 	AddElevatorToMap(LocalElev)
-	fmt.Println("Elevator is initialized in floor: ", LocalElev.Floor+1)
 }
 
 func AddElevatorToMap(e Elevator) {
 	if _, elevatorInMap := ElevatorMap[e.ID]; elevatorInMap {
+		//Do nothing
 	} else {
 		ElevatorMap[e.ID] = e
-		fmt.Println("Elevator added to map")
 	}
 }
 

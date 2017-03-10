@@ -34,7 +34,6 @@ func Init(transmitQueue chan config.QueueMessage, transmitLight chan driver.Butt
 			localIP = "DISCONNECTED"
 		}
 		id = fmt.Sprintf(localIP)
-		fmt.Println("ID is: ", id)
 	}
 	initiateCommunicationGoRoutines(id, transmitQueue, transmitLight)
 	go periodicStatusUpdate()
@@ -84,7 +83,6 @@ func HandleIncomingMessages(newButton chan driver.Button, newOrder chan bool, tr
 
 func periodicStatusUpdate() {
 	time.Sleep(1 * time.Second)
-	fmt.Println("Started status update")
 	for {
 		transmitStatus <- config.LocalElev
 		time.Sleep(1 * time.Second)

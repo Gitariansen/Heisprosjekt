@@ -22,7 +22,6 @@ func UpdatePeers(receivedPeer PeerUpdate, newButton chan driver.Button, transmit
 	lostIDs := receivedPeer.Lost
 	if len(receivedPeer.New) != 0 {
 		if newID == config.LocalElev.ID {
-			fmt.Println("I am the new elevator on the network")
 			config.LocalElev.Active = true
 		} else if _, elevatorInMap := config.ElevatorMap[newID]; elevatorInMap {
 			newElevCopy := config.ElevatorMap[newID]
@@ -50,7 +49,6 @@ func UpdatePeers(receivedPeer PeerUpdate, newButton chan driver.Button, transmit
 			config.ElevatorMap[receivedPeer.Lost[i]] = lostElev
 		}
 		if len(receivedPeer.Peers) == 0 {
-			fmt.Println("I am alone on the network")
 			config.LocalElev.Active = false
 		} else {
 			for i := 0; i < len(receivedPeer.Lost); i++ {
@@ -69,7 +67,6 @@ func UpdatePeers(receivedPeer PeerUpdate, newButton chan driver.Button, transmit
 				config.ElevatorMap[receivedPeer.Lost[i]] = lostElev
 			}
 		}
-
 	}
 }
 

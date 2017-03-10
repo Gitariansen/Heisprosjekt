@@ -3,7 +3,6 @@ package fsm
 import (
 	"config"
 	"driver"
-	"fmt"
 	"orderManager"
 	"os"
 	"os/signal"
@@ -126,7 +125,6 @@ func checkMotorResponse(responseTimerReset chan bool) {
 		case <-timer2.C:
 			timer2.Stop()
 			if !config.LocalElev.Queue.IsEmpty() && config.LocalElev.State != config.DOOR_OPEN {
-				fmt.Println("Motor has stoped")
 				driver.ElevSetMotorDirection(driver.DIR_STOP)
 				config.LocalElev.Active = false
 				for f := 0; f < driver.N_FLOORS; f++ {

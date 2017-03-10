@@ -3,7 +3,6 @@ package orderManager
 import (
 	"config"
 	"driver"
-	"fmt"
 	"time"
 )
 
@@ -22,21 +21,17 @@ func OrderManager(newButton chan driver.Button, newOrder chan bool, transmitQueu
 							break loop
 						}
 					}
-					fmt.Println("----------------------------------------")
 					returnID := calculateFastestElevator(buttonPressed)
 					if returnID == config.LocalElev.ID {
-						fmt.Println("Local elevator was chosen")
 						config.LocalElev.Queue.AddOrderToQueue(buttonPressed)
 						newOrder <- true
 						transmitLight <- buttonPressed
 					} else {
-						fmt.Println("Elevator with ID: ", returnID, "chosen")
 						var tempOrder config.QueueMessage
 						tempOrder.IP = returnID
 						tempOrder.Button = buttonPressed
 						transmitQueue <- tempOrder
 					}
-					fmt.Println("----------------------------------------")
 				}
 			}
 		}
