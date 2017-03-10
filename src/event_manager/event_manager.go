@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-func Get_Button_Press(c chan driver.Button) {
+func GetButtonPress(c chan driver.Button) {
 	var button_pressed driver.Button
 	for {
 		for floor := 0; floor < driver.N_FLOORS; floor++ {
@@ -23,7 +23,7 @@ func Get_Button_Press(c chan driver.Button) {
 	}
 }
 
-func Get_new_floor(ch chan int) {
+func GetNewFloor(ch chan int) {
 	prev_floor := driver.Elev_get_floor_sensor_signal()
 	for {
 		curr_floor := driver.Elev_get_floor_sensor_signal()

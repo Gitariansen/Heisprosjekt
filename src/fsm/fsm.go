@@ -4,6 +4,7 @@ import (
 	"config"
 	"driver"
 	"fmt"
+	"order_manager/order_manager"
 	"os"
 	"os/signal"
 	"time"
@@ -14,38 +15,35 @@ func Init(newOrder chan bool, newFloor chan int, doorTimeout chan bool, doorRese
 	go openDoor(doorTimeout, doorReset)
 	go checkMotorResponse(floorReset)
 	go safeKill()
+	go updateElevatorMap()
 }
 
-func runFSM(newOrder chan bool, newFloor chan int, Door_timeout chan bool, Door_reset chan bool, light_clear chan driver.Button, floor_reset chan bool) {
+func runFSM(newOrder chan bool, newFloor chan int, doorTimeout chan bool, doorReset chan bool, transmitLight chan driver.Button, responseTimerReset chan bool) {
 	for {
 		select {
 		case <-newOrder:
-			newOrderInQueue(Door_reset, light_clear)
-			floor_reset <- true //TODO RENAME THIS sHIT
+			newOrderInQueue(doorReset, transmitLight)
+			responseTimerReset <- true
 		case floor := <-newFloor:
-			arrivingAtFloor(floor, Door_reset, light_clear)
-			floor_reset <- true
-		case <-Door_timeout:
-			doorTimeout()
-			floor_reset <- true
+			arrivingAtFloor(floor, doorReset, transmitLight)
+			responseTimerReset <- true
+		case <-doorTimeout:
+			doorTimedOut()
+			responseTimerReset <- true
 		}
 	}
 }
 
-func newOrderInQueue(Door_reset chan bool, light_clear chan driver.Button) {
+func newOrderInQueue(doorReset chan bool, transmitLight chan driver.Button) {
 	switch config.LocalElev.State {
 	case config.IDLE:
 		config.LocalElev.Dir = config.LocalElev.Queue.Choose_dir(config.LocalElev.Floor, config.LocalElev.Dir)
 		if config.LocalElev.Dir == driver.DIR_STOP {
 			config.LocalElev.State = config.DOOR_OPEN
-			Door_reset <- true
+			doorReset <- true
 			driver.Elev_set_door_open_lamp(true)
 			config.LocalElev.Queue.Clear_orders_at_floor(config.LocalElev.Floor, config.LocalElev.Dir)
-			//TODO make subfunction
-			var bup, bdwn driver.Button
-			bup, bdwn = config.LocalElev.Queue.Clear_lights_at_floor(config.LocalElev.Floor, config.LocalElev.Dir)
-			light_clear <- bup
-			light_clear <- bdwn
+			order_manager.TransmitLightSignal(transmitLight)
 		} else {
 			driver.Elev_set_motor_direction(config.LocalElev.Dir)
 			config.LocalElev.State = config.MOVING
@@ -54,45 +52,34 @@ func newOrderInQueue(Door_reset chan bool, light_clear chan driver.Button) {
 		//do nothing
 	case config.DOOR_OPEN:
 		if config.LocalElev.Queue.Should_stop(config.LocalElev.Floor, config.LocalElev.Dir) {
-			Door_reset <- true
+			doorReset <- true
 			driver.Elev_set_door_open_lamp(true)
 			config.LocalElev.Queue.Clear_orders_at_floor(config.LocalElev.Floor, config.LocalElev.Dir)
-			var bup, bdwn driver.Button
-			bup, bdwn = config.LocalElev.Queue.Clear_lights_at_floor(config.LocalElev.Floor, config.LocalElev.Dir)
-			light_clear <- bup
-			light_clear <- bdwn
+			order_manager.TransmitLightSignal(transmitLight)
 		}
 	}
 }
 
-func arrivingAtFloor(f int, Door_reset chan bool, light_clear chan driver.Button) {
-	config.LocalElev.Floor = f
-	var bup, bdwn driver.Button
-	driver.Elev_set_floor_indicator(f)
+func arrivingAtFloor(floor int, doorReset chan bool, transmitLight chan driver.Button) {
+	config.LocalElev.Floor = floor
+	driver.Elev_set_floor_indicator(floor)
 	switch config.LocalElev.State {
 	case config.IDLE:
 		//Do nothing
 	case config.MOVING:
-		if config.LocalElev.Queue.Should_stop(f, config.LocalElev.Dir) {
+		if config.LocalElev.Queue.Should_stop(floor, config.LocalElev.Dir) {
 			driver.Elev_set_motor_direction(driver.DIR_STOP)
-			config.LocalElev.Queue.Clear_orders_at_floor(f, config.LocalElev.Dir)
-
+			config.LocalElev.Queue.Clear_orders_at_floor(floor, config.LocalElev.Dir)
 			config.LocalElev.State = config.DOOR_OPEN
-			Door_reset <- true
-			driver.Elev_set_door_open_lamp(true)
-			bup, bdwn = config.LocalElev.Queue.Clear_lights_at_floor(f, config.LocalElev.Dir)
-
-			light_clear <- bup
-
-			light_clear <- bdwn
-
+			doorReset <- true
+			order_manager.TransmitLightSignal(transmitLight)
 		}
 	case config.DOOR_OPEN:
 		//Do nothing
 	default:
 	}
 }
-func doorTimeout() {
+func doorTimedOut() {
 	switch config.LocalElev.State {
 	case config.IDLE:
 		//Do nothing
@@ -112,13 +99,13 @@ func doorTimeout() {
 }
 
 //hardkokt
-func openDoor(Door_timeout, Door_reset chan bool) {
+func openDoor(Door_timeout, doorReset chan bool) {
 	const length = 3 * time.Second
 	timer := time.NewTimer(0)
 	timer.Stop()
 	for {
 		select {
-		case <-Door_reset:
+		case <-doorReset:
 			timer.Reset(length)
 		case <-timer.C:
 			timer.Stop()
@@ -133,14 +120,10 @@ func checkMotorResponse(floor_reset chan bool) {
 	timer2 := time.NewTimer(0)
 	timer2.Stop()
 	for {
-
-		fmt.Println("1")
 		select {
 		case <-floor_reset:
-			fmt.Println("Resetting timer")
 			timer2.Reset(length)
 		case <-timer2.C:
-			fmt.Println("Gother")
 			timer2.Stop()
 			if !config.LocalElev.Queue.Is_empty() && config.LocalElev.State != config.DOOR_OPEN {
 				fmt.Println("Motor has stoped")
@@ -152,7 +135,12 @@ func checkMotorResponse(floor_reset chan bool) {
 		}
 	}
 }
-
+func updateElevatorMap() {
+	for {
+		config.ElevatorMap[config.LocalElev.ID] = config.LocalElev
+		time.Sleep(100 * time.Millisecond)
+	}
+}
 func safeKill() {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt)

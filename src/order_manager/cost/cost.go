@@ -6,13 +6,13 @@ import (
 	"time"
 )
 
-//TODO move to order_manager
 var TravelTime = (2500 * time.Millisecond)
 var DoorOpenTime = (3000 * time.Millisecond)
 
-func TimeToIdle(elev config.Elevator) time.Duration {
+func TimeToIdle(elev config.Elevator, button_pressed driver.Button) time.Duration {
 	dur := 0 * time.Millisecond
 	e := elev
+	e.Queue.Add_order_to_queue(button_pressed)
 	switch e.State {
 	case config.IDLE:
 		e.Dir = e.Queue.Choose_dir(e.Floor, e.Dir)

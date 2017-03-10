@@ -17,21 +17,20 @@ type PeerUpdate struct {
 	Lost  []string
 }
 
-func UpdatePeers(p PeerUpdate, button_chan chan driver.Button, transmit_queue chan config.UDP_queue, transmitLight chan driver.Button) {
+func UpdatePeers(p PeerUpdate, newButton chan driver.Button, transmit_queue chan config.UDP_queue, transmitLight chan driver.Button) {
 	newID := p.New
 	lostIDs := p.Lost
 	if len(p.New) != 0 { //IF THERE IS NEW ELEVATOR
 		if newID == config.LocalElev.ID {
 			fmt.Println("I am the new elevator")
 			config.LocalElev.Active = true
-		} else if _, elevatorInMap := config.ElevatorMap[newID]; elevatorInMap { //if elevator with newID is in map
+		} else if _, elevatorInMap := config.ElevatorMap[newID]; elevatorInMap {
 			newElevCopy := config.ElevatorMap[newID]
 			for f := 0; f < driver.N_FLOORS; f++ {
 				if newElevCopy.Queue.Is_order(f, driver.B_CMD) {
 					for i := 0; i < 5; i++ {
 						orderButton := driver.Button{Floor: f, B_type: driver.B_CMD, Value: true}
 						order := config.UDP_queue{IP: newElevCopy.ID, Button: orderButton}
-						fmt.Println("Sending queue, ", order)
 						transmit_queue <- order
 						time.Sleep(10 * time.Millisecond)
 					}
@@ -55,21 +54,19 @@ func UpdatePeers(p PeerUpdate, button_chan chan driver.Button, transmit_queue ch
 			config.LocalElev.Active = false
 		} else {
 			for i := 0; i < len(p.Lost); i++ {
-				temp_queue := config.ElevatorMap[p.Lost[i]].Queue
+				redistributeQueue := config.ElevatorMap[p.Lost[i]].Queue
 				for b := 0; b < driver.N_BUTTONS-1; b++ {
 					for f := 0; f < driver.N_FLOORS; f++ {
-						if temp_queue.Is_order(f, b) {
-							fmt.Println("Adding order to queue, floor: ", f, " button: ", b)
-							return_btn := driver.Button{Floor: f, B_type: b, Value: true}
-							button_chan <- return_btn
-							temp_queue.Clear_order(f, b)
+						if redistributeQueue.Is_order(f, b) {
+							newOrder := driver.Button{Floor: f, B_type: b, Value: true}
+							newButton <- newOrder
+							redistributeQueue.Clear_order(f, b)
 						}
 					}
 				}
 				elev := config.ElevatorMap[p.Lost[i]]
-				elev.Queue = temp_queue
+				elev.Queue = redistributeQueue
 				config.ElevatorMap[p.Lost[i]] = elev
-				fmt.Println(elev.Queue)
 			}
 		}
 

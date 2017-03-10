@@ -12,16 +12,16 @@ func Make_empty_queue() Queue {
 	var ret Queue
 	for f := 0; f < driver.N_FLOORS; f++ {
 		for b := 0; b < driver.N_BUTTONS; b++ {
-			ret.Queue_matrix[f][b] = false //TODO The init must check the backup, and update correctly
+			ret.Queue_matrix[f][b] = false
 		}
 	}
 	return ret
 }
 
-func (q *Queue) Add_order_to_queue(button_pressed driver.Button, o chan bool) {
+func (q *Queue) Add_order_to_queue(button_pressed driver.Button) {
 	q.Queue_matrix[button_pressed.Floor][button_pressed.B_type] = true
 	q.set_local_lights()
-	o <- true
+	//o <- true
 }
 
 func (q *Queue) Clear_lights_at_floor(floor, dir int) (driver.Button, driver.Button) {

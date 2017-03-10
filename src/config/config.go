@@ -71,23 +71,7 @@ func Update_elevator_map(e Elevator) {
 	fmt.Println("UPDATED: ")
 }
 
-//TODO FIX UNDER HERE
-
-type Light struct {
-	Floor  int
-	B_type int
-	Value  bool
-}
-
-type Fsm_channels struct { //TODO implement this
-	Door_timeout chan bool
-	Door_reset   chan bool
-	New_order    chan bool
-	New_floor    chan int
-	Sync_lights  chan bool
-}
-
-type UDP_queue struct {
+type UDP_queue struct { //TODO rename
 	IP     string
 	Button driver.Button
 }

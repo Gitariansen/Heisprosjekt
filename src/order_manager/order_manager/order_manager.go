@@ -8,6 +8,66 @@ import (
 	"time"
 )
 
+func OrderManager(b chan driver.Button, o chan bool, q chan config.UDP_queue, light_transmit chan driver.Button) {
+	for {
+	loop:
+		select {
+		case button_pressed := <-b:
+			if button_pressed.B_type == driver.B_CMD {
+				config.LocalElev.Queue.Add_order_to_queue(button_pressed)
+				o <- true
+			} else {
+				if config.LocalElev.Active {
+					for _, v := range config.ElevatorMap {
+						if v.Active && v.Queue.Is_order(button_pressed.Floor, button_pressed.B_type) {
+							break loop
+						}
+					}
+					fmt.Println("----------------------------------------")
+					returnID := calculateFastestElevator(button_pressed)
+					if returnID == config.LocalElev.ID {
+						fmt.Println("Local elevator was chosen")
+						config.LocalElev.Queue.Add_order_to_queue(button_pressed)
+						o <- true
+						light_transmit <- button_pressed
+					} else {
+						fmt.Println("Elevator with ID: ", returnID, "chosen")
+						var temp config.UDP_queue
+						temp.IP = returnID
+						temp.Button = button_pressed
+						q <- temp
+					}
+					fmt.Println("----------------------------------------")
+				}
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+func calculateFastestElevator(button_pressed driver.Button) string {
+	returnID := config.LocalElev.ID
+	shortestTime := cost.TimeToIdle(config.LocalElev, button_pressed)
+	for IP, elev := range config.ElevatorMap {
+		if elev.Active {
+			elevCopy := elev
+			elevCopy.Queue.Queue_matrix[button_pressed.Floor][button_pressed.B_type] = true
+			newTime := cost.TimeToIdle(elevCopy, button_pressed)
+			if newTime < shortestTime {
+				shortestTime = newTime
+				returnID = IP
+			}
+		}
+	}
+	return returnID
+}
+
+func TransmitLightSignal(transmitLight chan driver.Button) {
+	var bup, bdwn driver.Button
+	bup, bdwn = config.LocalElev.Queue.Clear_lights_at_floor(config.LocalElev.Floor, config.LocalElev.Dir)
+	transmitLight <- bup
+	transmitLight <- bdwn
+}
+
 func SyncHallLights(transmitLight chan driver.Button) {
 	var ret driver.Button
 	for f := 0; f < driver.N_FLOORS; f++ {
@@ -17,53 +77,5 @@ func SyncHallLights(transmitLight chan driver.Button) {
 			ret.B_type = b
 			transmitLight <- ret
 		}
-	}
-}
-func Order_manager(b chan driver.Button, o chan bool, q chan config.UDP_queue, l chan driver.Button) {
-	for {
-	loop:
-		select {
-		case button_pressed := <-b:
-			if button_pressed.B_type == driver.B_CMD {
-				config.LocalElev.Queue.Add_order_to_queue(button_pressed, o)
-			} else if config.LocalElev.Active {
-				for _, v := range config.ElevatorMap {
-					if v.Active && v.Queue.Is_order(button_pressed.Floor, button_pressed.B_type) {
-						fmt.Println("Order is already in someone's queue")
-						break loop
-					}
-				}
-				fmt.Println("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-				return_ID := config.LocalElev.ID
-				fmt.Println("a")
-				shortestTime := cost.TimeToIdle(config.LocalElev)
-				for IP, v := range config.ElevatorMap {
-					if v.Active {
-						v2 := v
-						v2.Queue.Queue_matrix[button_pressed.Floor][button_pressed.B_type] = true
-						new_time := cost.TimeToIdle(v2)
-						if new_time < shortestTime {
-							shortestTime = new_time
-							return_ID = IP
-						}
-					}
-					fmt.Println("return ID: ", return_ID)
-				}
-				if return_ID == config.LocalElev.ID {
-					fmt.Println("Local elevator was chosen")
-					config.LocalElev.Queue.Add_order_to_queue(button_pressed, o)
-					fmt.Println("Light sent")
-					l <- button_pressed
-					time.Sleep(10 * time.Millisecond)
-				} else {
-					fmt.Println("Elevator with ID chosen: ", return_ID)
-					var temp config.UDP_queue
-					temp.IP = return_ID
-					temp.Button = button_pressed
-					q <- temp
-				}
-			}
-		}
-		time.Sleep(10 * time.Millisecond)
 	}
 }
