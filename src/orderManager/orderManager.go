@@ -34,7 +34,11 @@ func OrderManager(newButton chan driver.Button, newOrder chan bool, transmitQueu
 						var tempOrder config.QueueMessage
 						tempOrder.IP = returnID
 						tempOrder.Button = buttonPressed
-						transmitQueue <- tempOrder
+						for i = 0; i < 3; i++ {
+							transmitQueue <- tempOrder
+							time.Sleep(10 * time.Millisecond)
+						}
+
 					}
 					fmt.Println("----------------------------------------")
 				}
@@ -47,8 +51,10 @@ func OrderManager(newButton chan driver.Button, newOrder chan bool, transmitQueu
 func TransmitLightSignal(transmitLight chan driver.Button) {
 	var btnUp, btnDown driver.Button
 	btnUp, btnDown = config.LocalElev.Queue.ClearLightsAtFloor(config.LocalElev.Floor, config.LocalElev.Dir)
-	transmitLight <- btnUp
-	transmitLight <- btnDown
+	for i = 0; i < 3; i++ {
+		transmitLight <- btnUp
+		transmitLight <- btnDown
+	}
 }
 
 func SyncHallLights(transmitLight chan driver.Button) {
