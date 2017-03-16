@@ -31,6 +31,7 @@ func UpdatePeers(receivedPeer PeerUpdate, newButton chan driver.Button, transmit
 					for i := 0; i < 5; i++ {
 						orderButton := driver.Button{Floor: f, BtnType: driver.BTN_CMD, Value: true}
 						order := config.QueueMessage{IP: newElevCopy.ID, Button: orderButton}
+						//HERE
 						for i = 0; i < 3; i++ {
 							transmitQueue <- order
 							time.Sleep(10 * time.Millisecond)
@@ -61,6 +62,7 @@ func UpdatePeers(receivedPeer PeerUpdate, newButton chan driver.Button, transmit
 					for f := 0; f < driver.N_FLOORS; f++ {
 						if redistributeQueue.IsOrder(f, b) {
 							newOrder := driver.Button{Floor: f, BtnType: b, Value: true}
+							//HERE
 							for i = 0; i < 3; i++ {
 								newButton <- newOrder
 								time.Sleep(10 * time.Millisecond)
